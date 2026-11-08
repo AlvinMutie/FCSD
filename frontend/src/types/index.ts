@@ -169,6 +169,52 @@ export interface AcademicBalanceData {
   }>;
 }
 
+export interface AvailabilityRuleItem {
+  id: number;
+  user_id: number;
+  day_of_week: number;
+  start_time: string;
+  end_time: string;
+  is_active: boolean;
+}
+
+export interface CalendarEventItem {
+  id: number;
+  user_id: number;
+  schedule_version_id?: number | null;
+  title: string;
+  category: 'academic' | 'skill' | 'career' | 'project' | 'personal' | 'rest';
+  start_time: string;
+  end_time: string;
+  is_locked: boolean;
+  is_completed: boolean;
+  is_skipped: boolean;
+  related_entity_type?: string | null;
+  related_entity_id?: number | null;
+  explanation?: string | null;
+  notes?: string | null;
+}
+
+export interface OverloadReport {
+  is_overloaded: boolean;
+  total_available_hours: number;
+  total_needed_hours: number;
+  deficit_hours: number;
+  suggestion: string;
+}
+
+export interface ScheduleVersionItem {
+  id: number;
+  user_id: number;
+  version_number: number;
+  start_date: string;
+  end_date: string;
+  status: string;
+  metrics: OverloadReport;
+  events_count: number;
+  created_at: string;
+}
+
 export interface PendingImportItem {
   id: number;
   user_id: number;

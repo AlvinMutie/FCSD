@@ -15,6 +15,11 @@ from .integration import (
     PendingImport,
     ImportProvenance,
 )
+from .scheduler import (
+    AvailabilityRule,
+    ScheduleVersion,
+    CalendarEvent,
+)
 
 __all__ = [
     'db',
@@ -31,4 +36,7 @@ __all__ = [
     'Integration',
     'PendingImport',
     'ImportProvenance',
+    'AvailabilityRule',
+    'ScheduleVersion',
+    'CalendarEvent',
 ]

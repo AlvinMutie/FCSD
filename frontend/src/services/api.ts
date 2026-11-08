@@ -341,4 +341,98 @@ export const api = {
     if (!res.ok) throw new Error(data.error || 'Failed to fetch history');
     return data;
   },
+
+  // Scheduling Engine & Timetable
+  async getAvailability(): Promise<{ rules: any[] }> {
+    const res = await fetch(`${BASE_URL}/scheduler/availability`, { credentials: 'include' });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Failed to fetch availability');
+    return data;
+  },
+
+  async addAvailability(rule: { day_of_week: number; start_time: string; end_time: string }): Promise<{ rule: any }> {
+    const res = await fetch(`${BASE_URL}/scheduler/availability`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      credentials: 'include',
+      body: JSON.stringify(rule),
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Failed to add availability rule');
+    return data;
+  },
+
+  async deleteAvailability(id: number): Promise<void> {
+    const res = await fetch(`${BASE_URL}/scheduler/availability/${id}`, {
+      method: 'DELETE',
+      credentials: 'include',
+    });
+    if (!res.ok) throw new Error('Failed to delete availability rule');
+  },
+
+  async generateWeeklySchedule(startDate?: string, autoApprove = true): Promise<any> {
+    const res = await fetch(`${BASE_URL}/scheduler/generate`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      credentials: 'include',
+      body: JSON.stringify({ start_date: startDate, auto_approve: autoApprove }),
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Failed to generate weekly timetable');
+    return data;
+  },
+
+  async rescheduleToday(targetDate?: string): Promise<any> {
+    const res = await fetch(`${BASE_URL}/scheduler/reschedule-today`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      credentials: 'include',
+      body: JSON.stringify({ target_date: targetDate }),
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Failed to reschedule today');
+    return data;
+  },
+
+  async getCalendarEvents(start?: string, end?: string): Promise<{ events: any[] }> {
+    const params = new URLSearchParams();
+    if (start) params.append('start', start);
+    if (end) params.append('end', end);
+    const res = await fetch(`${BASE_URL}/scheduler/events?${params.toString()}`, { credentials: 'include' });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Failed to fetch calendar events');
+    return data;
+  },
+
+  async createCalendarEvent(payload: any): Promise<{ event: any }> {
+    const res = await fetch(`${BASE_URL}/scheduler/events`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      credentials: 'include',
+      body: JSON.stringify(payload),
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Failed to create event');
+    return data;
+  },
+
+  async updateCalendarEvent(id: number, payload: any): Promise<{ event: any }> {
+    const res = await fetch(`${BASE_URL}/scheduler/events/${id}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      credentials: 'include',
+      body: JSON.stringify(payload),
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Failed to update event');
+    return data;
+  },
+
+  async deleteCalendarEvent(id: number): Promise<void> {
+    const res = await fetch(`${BASE_URL}/scheduler/events/${id}`, {
+      method: 'DELETE',
+      credentials: 'include',
+    });
+    if (!res.ok) throw new Error('Failed to delete event');
+  },
 };

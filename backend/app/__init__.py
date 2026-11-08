@@ -20,6 +20,7 @@ from .settings.routes import settings_bp
 from .dashboard.routes import dashboard_bp
 from .academics.routes import academics_bp
 from .integrations.routes import integrations_bp
+from .scheduler.routes import scheduler_bp
 
 def create_app(config_class=Config):
     app = Flask(__name__)
@@ -36,6 +37,7 @@ def create_app(config_class=Config):
     app.register_blueprint(dashboard_bp)
     app.register_blueprint(academics_bp)
     app.register_blueprint(integrations_bp)
+    app.register_blueprint(scheduler_bp)
 
     with app.app_context():
         db.create_all()
