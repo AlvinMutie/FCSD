@@ -18,6 +18,7 @@ import {
   X,
   Info,
   Layers,
+  Edit3,
 } from 'lucide-react';
 import { api } from '../../services/api';
 import { CalendarEventItem, AvailabilityRuleItem, OverloadReport } from '../../types';
@@ -48,6 +49,12 @@ export const TimetablePage: React.FC = () => {
   const [newEventStart, setNewEventStart] = useState('');
   const [newEventEnd, setNewEventEnd] = useState('');
   const [newEventLocked, setNewEventLocked] = useState(false);
+
+  // Edit existing event state
+  const [isEditingEvent, setIsEditingEvent] = useState(false);
+  const [editEventTitle, setEditEventTitle] = useState('');
+  const [editEventStart, setEditEventStart] = useState('');
+  const [editEventEnd, setEditEventEnd] = useState('');
 
   const loadData = async () => {
     try {
@@ -108,6 +115,45 @@ export const TimetablePage: React.FC = () => {
     const found = events.find((e) => e.id === eventId);
     if (found) {
       setSelectedEvent(found);
+      setIsEditingEvent(false);
+      setEditEventTitle(found.title);
+      setEditEventStart(found.start_time.slice(0, 16));
+      setEditEventEnd(found.end_time.slice(0, 16));
+    }
+  };
+
+  const handleSaveEventEdit = async () => {
+    if (!selectedEvent || !editEventTitle.trim()) return;
+    try {
+      await api.updateCalendarEvent(selectedEvent.id, {
+        title: editEventTitle.trim(),
+        start_time: editEventStart,
+        end_time: editEventEnd,
+        is_locked: true,
+      });
+      setSelectedEvent({
+        ...selectedEvent,
+        title: editEventTitle.trim(),
+        start_time: editEventStart,
+        end_time: editEventEnd,
+        is_locked: true,
+      });
+      setIsEditingEvent(false);
+      loadData();
+    } catch (err: any) {
+      alert(err.message);
+    }
+  };
+
+  const handleClearWeek = async () => {
+    if (!confirm('Clear all unlocked sessions for this week? Any locked sessions (🔒) will remain safely intact.')) return;
+    try {
+      const res = await api.clearCalendarEvents();
+      setActionNotice(res.message);
+      setTimeout(() => setActionNotice(null), 4000);
+      loadData();
+    } catch (err: any) {
+      alert(err.message);
     }
   };
 
@@ -281,6 +327,16 @@ export const TimetablePage: React.FC = () => {
             <span>{generating ? 'Calculating Schedule...' : 'Generate Week Timetable'}</span>
           </button>
 
+          {/* Clear Week Button */}
+          <button
+            onClick={handleClearWeek}
+            className="px-3 py-2 rounded-xl bg-slate-900 border border-slate-800 hover:bg-rose-500/10 hover:border-rose-500/30 text-rose-400 text-xs font-semibold flex items-center gap-1 cursor-pointer transition-colors"
+            title="Clear all flexible sessions and start with a clean slate"
+          >
+            <Trash2 className="w-3.5 h-3.5" />
+            <span>Clear Week</span>
+          </button>
+
           {/* Custom Event */}
           <button
             onClick={() => setShowNewEventModal(true)}
@@ -383,36 +439,94 @@ export const TimetablePage: React.FC = () => {
               </button>
             </div>
 
-            <h3 className="font-bold text-slate-100 text-base">{selectedEvent.title}</h3>
-
-            <div className="space-y-2 text-xs text-slate-300">
-              <div className="flex items-center gap-2">
-                <Clock className="w-4 h-4 text-slate-500" />
-                <span>
-                  {new Date(selectedEvent.start_time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} -{' '}
-                  {new Date(selectedEvent.end_time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                </span>
-              </div>
-              <div className="flex items-center gap-2">
-                <CalendarIcon className="w-4 h-4 text-slate-500" />
-                <span>{new Date(selectedEvent.start_time).toLocaleDateString([], { weekday: 'long', month: 'short', day: 'numeric' })}</span>
-              </div>
-            </div>
-
-            {/* Decision Explanation */}
-            {selectedEvent.explanation && (
-              <div className="p-3.5 rounded-xl bg-slate-800/60 border border-slate-700/60 space-y-1">
-                <div className="flex items-center gap-1.5 text-brand-400 text-xs font-semibold">
-                  <Info className="w-3.5 h-3.5" />
-                  <span>Scheduling Engine Decision</span>
+            {isEditingEvent ? (
+              <div className="space-y-3 pt-2">
+                <div>
+                  <label className="text-xs text-slate-400 block mb-1">Session Title</label>
+                  <input
+                    type="text"
+                    value={editEventTitle}
+                    onChange={(e) => setEditEventTitle(e.target.value)}
+                    className="w-full bg-slate-800 border border-slate-700 rounded-xl px-3 py-2 text-xs text-slate-100 focus:outline-none focus:border-brand-500"
+                  />
                 </div>
-                <p className="text-xs text-slate-300">{selectedEvent.explanation}</p>
+                <div className="grid grid-cols-2 gap-2">
+                  <div>
+                    <label className="text-xs text-slate-400 block mb-1">Start Time</label>
+                    <input
+                      type="datetime-local"
+                      value={editEventStart}
+                      onChange={(e) => setEditEventStart(e.target.value)}
+                      className="w-full bg-slate-800 border border-slate-700 rounded-xl px-2.5 py-1.5 text-xs text-slate-100"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-xs text-slate-400 block mb-1">End Time</label>
+                    <input
+                      type="datetime-local"
+                      value={editEventEnd}
+                      onChange={(e) => setEditEventEnd(e.target.value)}
+                      className="w-full bg-slate-800 border border-slate-700 rounded-xl px-2.5 py-1.5 text-xs text-slate-100"
+                    />
+                  </div>
+                </div>
+                <div className="flex gap-2 pt-2">
+                  <button
+                    onClick={handleSaveEventEdit}
+                    className="flex-1 py-1.5 bg-brand-600 hover:bg-brand-500 text-white rounded-xl text-xs font-semibold cursor-pointer"
+                  >
+                    Save Changes
+                  </button>
+                  <button
+                    onClick={() => setIsEditingEvent(false)}
+                    className="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-xl text-xs font-semibold cursor-pointer"
+                  >
+                    Cancel
+                  </button>
+                </div>
               </div>
+            ) : (
+              <>
+                <h3 className="font-bold text-slate-100 text-base">{selectedEvent.title}</h3>
+
+                <div className="space-y-2 text-xs text-slate-300">
+                  <div className="flex items-center gap-2">
+                    <Clock className="w-4 h-4 text-slate-500" />
+                    <span>
+                      {new Date(selectedEvent.start_time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} -{' '}
+                      {new Date(selectedEvent.end_time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <CalendarIcon className="w-4 h-4 text-slate-500" />
+                    <span>{new Date(selectedEvent.start_time).toLocaleDateString([], { weekday: 'long', month: 'short', day: 'numeric' })}</span>
+                  </div>
+                </div>
+
+                {/* Decision Explanation */}
+                {selectedEvent.explanation && (
+                  <div className="p-3.5 rounded-xl bg-slate-800/60 border border-slate-700/60 space-y-1">
+                    <div className="flex items-center gap-1.5 text-brand-400 text-xs font-semibold">
+                      <Info className="w-3.5 h-3.5" />
+                      <span>Scheduling Engine Decision</span>
+                    </div>
+                    <p className="text-xs text-slate-300">{selectedEvent.explanation}</p>
+                  </div>
+                )}
+              </>
             )}
 
             {/* Actions */}
             <div className="flex flex-wrap items-center justify-between gap-2 pt-3 border-t border-slate-800">
               <div className="flex items-center gap-2">
+                <button
+                  onClick={() => setIsEditingEvent(!isEditingEvent)}
+                  className="px-3 py-1.5 rounded-xl border border-slate-700 bg-slate-800 text-slate-300 hover:bg-slate-700 text-xs font-semibold flex items-center gap-1 cursor-pointer"
+                >
+                  <Edit3 className="w-3.5 h-3.5" />
+                  <span>{isEditingEvent ? 'Cancel Edit' : 'Edit'}</span>
+                </button>
+
                 <button
                   onClick={() => handleToggleLock(selectedEvent)}
                   className={`px-3 py-1.5 rounded-xl border text-xs font-semibold flex items-center gap-1 cursor-pointer ${

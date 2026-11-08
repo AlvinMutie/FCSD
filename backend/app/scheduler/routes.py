@@ -1,4 +1,4 @@
-from datetime import datetime, date, timedelta, timezone
+from datetime import datetime, date, time, timedelta, timezone
 from flask import Blueprint, request, jsonify, session
 from ..models import (
     db,
@@ -110,6 +110,33 @@ def generate_schedule():
         'events': [e.to_dict() for e in events],
         'overload_report': overload_report
     }), 201
+
+@scheduler_bp.route('/clear', methods=['POST'])
+def clear_events():
+    user = get_current_user()
+    if not user:
+        return jsonify({'error': 'Unauthorized'}), 401
+
+    data = request.get_json() or {}
+    start_date_str = data.get('start_date')
+    end_date_str = data.get('end_date')
+
+    query = CalendarEvent.query.filter(
+        CalendarEvent.user_id == user.id,
+        CalendarEvent.is_locked == False,
+    )
+    if start_date_str:
+        s_date = parse_iso_date(start_date_str)
+        if s_date:
+            query = query.filter(CalendarEvent.start_time >= datetime.combine(s_date, time.min))
+    if end_date_str:
+        e_date = parse_iso_date(end_date_str)
+        if e_date:
+            query = query.filter(CalendarEvent.end_time <= datetime.combine(e_date, time.max))
+
+    deleted = query.delete(synchronize_session=False)
+    db.session.commit()
+    return jsonify({'message': f'Cleared {deleted} flexible events', 'deleted_count': deleted}), 200
 
 # ==========================================
 # "Reschedule My Day"

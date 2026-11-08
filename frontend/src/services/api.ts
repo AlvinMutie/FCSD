@@ -387,6 +387,18 @@ export const api = {
     return data;
   },
 
+  async clearCalendarEvents(startDate?: string, endDate?: string): Promise<{ message: string; deleted_count: number }> {
+    const res = await fetch(`${BASE_URL}/scheduler/clear`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      credentials: 'include',
+      body: JSON.stringify({ start_date: startDate, end_date: endDate }),
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Failed to clear events');
+    return data;
+  },
+
   async rescheduleToday(targetDate?: string): Promise<any> {
     const res = await fetch(`${BASE_URL}/scheduler/reschedule-today`, {
       method: 'POST',

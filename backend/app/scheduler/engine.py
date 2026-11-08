@@ -222,8 +222,14 @@ class SchedulingEngine:
             Course.is_archived == False
         ).all()
         for c in courses:
+            clean_title = c.title
+            if c.code and c.code != 'SODEL UNIT' and not clean_title.startswith(c.code):
+                display_name = f"{c.code}: {clean_title}"
+            else:
+                display_name = clean_title
+
             gap = c.attention_gap
-            sessions_to_schedule = max(1, int(round((gap * 60) / 90))) if gap > 0 else 1
+            sessions_to_schedule = max(1, min(3, int(round((gap * 60) / 90)))) if gap > 0 else 1
             for s_idx in range(sessions_to_schedule):
                 p = self.compute_task_priority(
                     deadline=None,
@@ -233,27 +239,27 @@ class SchedulingEngine:
                 )
                 tasks.append(SchedulableTask(
                     id=f"crs_{c.id}_{s_idx}",
-                    title=f"Core Study: {c.code} - {c.title}",
+                    title=f"Study: {display_name}",
                     category='academic',
                     duration_mins=90,
                     priority_score=p,
                     course_code=c.code,
-                    explanation=f"Maintain balanced study coverage & reduce attention gap ({c.attention_gap}h)",
+                    explanation=f"Dedicated study coverage for {c.title}",
                     related_entity_type='course',
                     related_entity_id=c.id
                 ))
 
         # 4. Technical Skills Tracks (4 tracks: Python, Cyber, Web, Net)
         skill_tracks = [
-            ('Python', 5.0),
-            ('Cybersecurity', 5.0),
-            ('Web Development', 6.0),
-            ('Networking', 5.0),
+            ('Python', 3.0),
+            ('Cybersecurity', 3.0),
+            ('Web Development', 3.0),
+            ('Networking', 3.0),
         ]
         for track_name, weekly_target in skill_tracks:
-            sessions_count = int(round(weekly_target / 1.5))
+            sessions_count = max(1, min(2, int(round(weekly_target / 1.5))))
             for s_idx in range(sessions_count):
-                p = self.compute_task_priority(deadline=None, importance=4, difficulty=3)
+                p = self.compute_task_priority(deadline=None, importance=3, difficulty=3)
                 tasks.append(SchedulableTask(
                     id=f"skill_{track_name}_{s_idx}",
                     title=f"Technical Skill Track: {track_name}",
@@ -265,9 +271,9 @@ class SchedulingEngine:
                 ))
 
         # 5. Career & Job Applications (based on target weekly apps)
-        career_target = self.settings.career_weekly_apps_target if self.settings else 3
+        career_target = min(2, self.settings.career_weekly_apps_target if self.settings else 2)
         for c_idx in range(career_target):
-            p = self.compute_task_priority(deadline=None, importance=4, difficulty=2)
+            p = self.compute_task_priority(deadline=None, importance=3, difficulty=2)
             tasks.append(SchedulableTask(
                 id=f"career_{c_idx}",
                 title="Career Activity: Search & Tailor Applications",
@@ -287,6 +293,16 @@ class SchedulingEngine:
     ) -> Tuple[ScheduleVersion, List[CalendarEvent], Dict]:
         end_date = start_date + timedelta(days=6)
         availability = self.get_user_availability_intervals(start_date, days_count=7)
+
+        # 0. Clear previous non-locked events in this date range to strictly avoid duplicates/overlaps
+        CalendarEvent.query.filter(
+            CalendarEvent.user_id == self.user.id,
+            CalendarEvent.is_locked == False,
+            CalendarEvent.is_completed == False,
+            CalendarEvent.start_time >= datetime.combine(start_date, time.min),
+            CalendarEvent.start_time <= datetime.combine(end_date, time.max)
+        ).delete(synchronize_session=False)
+        db.session.commit()
 
         # 1. Load existing locked events
         existing_locked = CalendarEvent.query.filter(
@@ -366,56 +382,40 @@ class SchedulingEngine:
         db.session.flush()
 
         slot_idx = 0
-        current_slot_pointer = free_slots[0][0] if free_slots else None
+        current_slot_pointer = None
 
         for task in all_tasks:
-            if slot_idx >= len(free_slots):
-                break  # Overload capacity reached, stop packing
-
-            slot_start, slot_end = free_slots[slot_idx]
-            if current_slot_pointer is None or current_slot_pointer < slot_start:
-                current_slot_pointer = slot_start
-
             task_duration = timedelta(minutes=task.duration_mins)
-            task_end = current_slot_pointer + task_duration
+            placed = False
 
-            if task_end <= slot_end:
-                # Task fits in current slot
-                event = CalendarEvent(
-                    user_id=self.user.id,
-                    schedule_version_id=version.id,
-                    title=task.title,
-                    category=task.category,
-                    start_time=current_slot_pointer,
-                    end_time=task_end,
-                    is_locked=False,
-                    related_entity_type=task.related_entity_type,
-                    related_entity_id=task.related_entity_id,
-                    explanation=task.explanation
-                )
-                scheduled_events.append(event)
-                current_slot_pointer = task_end + timedelta(minutes=15)  # 15m buffer
-            else:
-                # Move to next slot
-                slot_idx += 1
-                if slot_idx < len(free_slots):
-                    current_slot_pointer = free_slots[slot_idx][0]
-                    task_end = current_slot_pointer + task_duration
-                    if task_end <= free_slots[slot_idx][1]:
-                        event = CalendarEvent(
-                            user_id=self.user.id,
-                            schedule_version_id=version.id,
-                            title=task.title,
-                            category=task.category,
-                            start_time=current_slot_pointer,
-                            end_time=task_end,
-                            is_locked=False,
-                            related_entity_type=task.related_entity_type,
-                            related_entity_id=task.related_entity_id,
-                            explanation=task.explanation
-                        )
-                        scheduled_events.append(event)
-                        current_slot_pointer = task_end + timedelta(minutes=15)
+            while slot_idx < len(free_slots) and not placed:
+                slot_start, slot_end = free_slots[slot_idx]
+                if current_slot_pointer is None or current_slot_pointer < slot_start:
+                    current_slot_pointer = slot_start
+
+                task_end = current_slot_pointer + task_duration
+                if task_end <= slot_end:
+                    event = CalendarEvent(
+                        user_id=self.user.id,
+                        schedule_version_id=version.id,
+                        title=task.title,
+                        category=task.category,
+                        start_time=current_slot_pointer,
+                        end_time=task_end,
+                        is_locked=False,
+                        related_entity_type=task.related_entity_type,
+                        related_entity_id=task.related_entity_id,
+                        explanation=task.explanation
+                    )
+                    scheduled_events.append(event)
+                    current_slot_pointer = task_end + timedelta(minutes=15)
+                    placed = True
+                else:
+                    slot_idx += 1
+                    current_slot_pointer = None
+
+            if slot_idx >= len(free_slots):
+                break  # Reached capacity, remaining lower priority tasks deferred
 
         db.session.add_all(scheduled_events)
         db.session.commit()
