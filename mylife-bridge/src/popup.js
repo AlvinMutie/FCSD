@@ -67,9 +67,19 @@ document.addEventListener('DOMContentLoaded', async () => {
       if (!tabs[0] || !tabs[0].id) return;
 
       chrome.tabs.sendMessage(tabs[0].id, { action: 'SCAN_PAGE' }, (response) => {
-        if (chrome.runtime.lastError || !response || !response.success) {
+        if (chrome.runtime.lastError) {
           feedback.style.color = '#f87171';
-          feedback.textContent = 'Failed to extract from page. Ensure you are on a supported SODeL page.';
+          feedback.textContent = 'Please refresh the SODeL tab (F5) once so the extension can connect.';
+          return;
+        }
+
+        if (!response || !response.success) {
+          feedback.style.color = '#f87171';
+          if (response && response.pageType === 'course_overview') {
+            feedback.textContent = 'You are on the dashboard. Click into a specific Course or Assignment page first.';
+          } else {
+            feedback.textContent = 'Open a specific Course (course/view.php) or Assignment (mod/assign/...) to scan.';
+          }
           return;
         }
 
