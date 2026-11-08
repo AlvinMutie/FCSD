@@ -269,3 +269,4 @@ def delete_evidence(evidence_id):
     db.session.delete(evidence)
     db.session.commit()
     return jsonify({'message': 'Evidence deleted'}), 200
+

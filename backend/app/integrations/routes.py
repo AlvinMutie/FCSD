@@ -387,3 +387,4 @@ def get_history():
             for p in provenance_records
         ]
     }), 200
+

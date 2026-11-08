@@ -4,3 +4,4 @@
 chrome.runtime.onInstalled.addListener(() => {
   console.log('MyLife Bridge extension installed successfully.');
 });
+

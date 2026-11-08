@@ -105,3 +105,4 @@ flowchart TD
   with dynamic boosts for Attention Gap ($+0.15$) and CAT/Exam proximity ($+0.30$).
 - Overload detection: Computes total required hours versus net available hours. If $\text{Required} > \text{Available}$, emits an actionable overload report with reduction/deferral suggestions rather than creating an impossible schedule.
 - "Reschedule My Day": Re-evaluates missed or in-progress tasks for the current day without disturbing locked future blocks or deleting unfinished work.
+

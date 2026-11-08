@@ -94,3 +94,4 @@ class CalendarEvent(db.Model):
             'explanation': self.explanation,
             'notes': self.notes
         }
+

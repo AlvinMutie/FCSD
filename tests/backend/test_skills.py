@@ -86,3 +86,4 @@ def test_record_session_and_evidence(client):
     assert ev_res.status_code == 201
     ev_data = ev_res.get_json()['evidence']
     assert ev_data['evidence_type'] == 'GitHub'
+

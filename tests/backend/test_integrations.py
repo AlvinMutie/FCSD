@@ -92,3 +92,4 @@ def test_scan_intake_and_approval_workflow(client):
     assert provenance is not None
     assert provenance.target_table == 'assignments'
     assert provenance.target_record_id == approved_assign.id
+

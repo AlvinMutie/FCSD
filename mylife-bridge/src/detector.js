@@ -28,3 +28,4 @@ const PageDetector = {
 if (typeof module !== 'undefined' && module.exports) {
   module.exports = PageDetector;
 }
+

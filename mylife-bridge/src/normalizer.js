@@ -38,3 +38,4 @@ const Normalizer = {
 if (typeof module !== 'undefined' && module.exports) {
   module.exports = Normalizer;
 }
+

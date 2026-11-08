@@ -30,3 +30,4 @@ A lightweight, assisted, read-only browser extension that connects your authenti
 5. Click the MyLife Bridge icon $\rightarrow$ **Scan Current Page**.
 6. Review the extracted preview $\rightarrow$ Click **Send to MyLife OS Staging**.
 7. In MyLife OS, go to **Integrations &gt; Pending Imports** to review, edit, or approve the record.
+

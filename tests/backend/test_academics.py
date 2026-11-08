@@ -129,3 +129,4 @@ def test_academic_balance_engine(client):
     neglected_alerts = [a for a in alerts if a['severity'] == 'HIGH']
     assert len(neglected_alerts) >= 1
     assert any('ICS 2201' in a['message'] for a in neglected_alerts)
+

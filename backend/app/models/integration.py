@@ -106,3 +106,4 @@ class ImportProvenance(db.Model):
             'action_taken': self.action_taken,
             'timestamp': self.timestamp.isoformat() if self.timestamp else None
         }
+

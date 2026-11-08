@@ -27,6 +27,12 @@ from .skill import (
     LearningSession,
     LearningEvidence,
 )
+from .career import (
+    JobOpportunity,
+    CVDocument,
+    Application,
+    InterviewPrep,
+)
 
 __all__ = [
     'db',
@@ -51,4 +57,8 @@ __all__ = [
     'LearningTask',
     'LearningSession',
     'LearningEvidence',
+    'JobOpportunity',
+    'CVDocument',
+    'Application',
+    'InterviewPrep',
 ]

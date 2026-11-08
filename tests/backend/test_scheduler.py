@@ -124,3 +124,4 @@ def test_scheduler_api_routes(client):
     resched_res = client.post('/api/scheduler/reschedule-today', json={})
     assert resched_res.status_code == 200
     assert 'rescheduled_count' in resched_res.get_json()
+

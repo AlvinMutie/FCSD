@@ -368,3 +368,4 @@ erDiagram
   - `lessons_learned`: TEXT
   - `goals_for_next_week`: TEXT
   - `created_at`: TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+

@@ -224,3 +224,4 @@ def delete_event(event_id):
     db.session.delete(event)
     db.session.commit()
     return jsonify({'message': 'Event deleted'}), 200
+

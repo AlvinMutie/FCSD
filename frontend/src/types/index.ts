@@ -377,3 +377,92 @@ export interface DashboardOverview {
   }>;
   dashboard_layout: UserSettings['dashboard_layout'];
 }
+
+// ==========================================
+// Career & Job Management (Phase 7)
+// ==========================================
+
+export type PipelineStage = 'Saved' | 'Preparing' | 'Applied' | 'Interview' | 'Offer' | 'Rejected' | 'Withdrawn';
+export type JobType = 'Internship' | 'Attachment' | 'Entry-level' | 'Junior Developer' | 'IT Support' | 'Networking' | 'Cybersecurity' | 'Other';
+export type CVCategory = 'General IT' | 'IT Support' | 'Networking' | 'Junior Developer' | 'Cybersecurity';
+export type InterviewType = 'Technical' | 'HR' | 'Assessment' | 'Panel';
+
+export interface JobOpportunityItem {
+  id: number;
+  user_id: number;
+  title: string;
+  company: string;
+  location: string;
+  job_type: JobType;
+  description: string | null;
+  requirements: string | null;
+  application_url: string | null;
+  closing_date: string | null;
+  priority: number;
+  pipeline_stage: PipelineStage;
+  notes: string | null;
+  has_application: boolean;
+  created_at: string;
+}
+
+export interface CVDocumentItem {
+  id: number;
+  user_id: number;
+  title: string;
+  category: CVCategory;
+  file_path: string | null;
+  notes: string | null;
+  updated_at: string;
+}
+
+export interface ApplicationItem {
+  id: number;
+  job_id: number;
+  applied_date: string | null;
+  cv_document_id: number | null;
+  cover_letter_text: string | null;
+  contact_person: string | null;
+  contact_email: string | null;
+  notes: string | null;
+  interviews_count: number;
+}
+
+export interface ChecklistItem {
+  item: string;
+  done: boolean;
+}
+
+export interface InterviewPrepItem {
+  id: number;
+  application_id: number;
+  scheduled_at: string;
+  interview_type: InterviewType;
+  checklist: ChecklistItem[];
+  company_research: string | null;
+  technical_questions: string | null;
+  feedback: string | null;
+}
+
+export interface SkillsGapMatch {
+  skill: string;
+  status: 'Strong Match' | 'Developing';
+  detail: string;
+}
+
+export interface SkillsGapItemType {
+  skill: string;
+  suggestion: string;
+}
+
+export interface SkillsGapAnalysis {
+  opportunity: JobOpportunityItem;
+  matched_skills: SkillsGapMatch[];
+  gap_skills: SkillsGapItemType[];
+  readiness_indicator: 'High Match' | 'Moderate Match' | 'Prerequisites Needed';
+}
+
+export interface OpportunitiesResponse {
+  opportunities: JobOpportunityItem[];
+  stage_counts: Record<string, number>;
+  total_count: number;
+}

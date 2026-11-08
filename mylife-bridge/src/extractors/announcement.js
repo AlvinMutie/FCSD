@@ -27,3 +27,4 @@ const AnnouncementExtractor = {
 if (typeof module !== 'undefined' && module.exports) {
   module.exports = AnnouncementExtractor;
 }
+

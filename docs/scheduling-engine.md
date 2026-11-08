@@ -82,3 +82,4 @@ Execution steps:
    - If capacity $\ge$ remaining tasks: re-pack tasks into afternoon/evening slots.
    - If capacity $<$ remaining tasks: prioritize tasks with imminent deadlines; defer flexible skill sessions to later in the week; alert user with clear explanation.
 5. Present side-by-side diff (Old vs Proposed) for single-click confirmation.
+

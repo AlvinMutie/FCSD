@@ -812,3 +812,4 @@ def get_academic_balance():
         'distinction_readiness_score': min(100, readiness_score),
         'spaced_revision_queue': spaced_queue[:8]
     }), 200
+
