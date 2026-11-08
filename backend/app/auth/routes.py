@@ -88,3 +88,4 @@ def get_current_user():
         'user': user.to_dict(),
         'settings': settings.to_dict()
     }), 200
+

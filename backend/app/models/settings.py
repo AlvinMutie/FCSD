@@ -63,3 +63,4 @@ class UserSettings(db.Model):
             'priority_weights': self.get_priority_weights(),
             'dashboard_layout': self.get_dashboard_layout()
         }
+

@@ -82,3 +82,4 @@ def test_dashboard_overview_authenticated(client):
     assert 'career_overview' in data
     assert 'time_allocation' in data
     assert len(data['skills_overview']['tracks']) == 4
+

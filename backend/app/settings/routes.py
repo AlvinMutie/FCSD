@@ -74,3 +74,4 @@ def update_settings():
         'settings': settings.to_dict(),
         'user': user.to_dict()
     }), 200
+

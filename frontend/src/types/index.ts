@@ -34,6 +34,141 @@ export interface UserSettings {
   };
 }
 
+export interface AcademicTerm {
+  id: number;
+  user_id: number;
+  name: string;
+  start_date: string;
+  end_date: string;
+  is_current: boolean;
+  courses_count: number;
+}
+
+export interface Course {
+  id: number;
+  term_id: number;
+  code: string;
+  title: string;
+  lecturer_name?: string | null;
+  lecturer_email?: string | null;
+  difficulty_level: number;
+  academic_importance: number;
+  min_weekly_hours: number;
+  target_weekly_hours: number;
+  actual_weekly_hours: number;
+  attention_gap: number;
+  is_neglected: boolean;
+  target_grade: string;
+  is_archived: boolean;
+  topics_count: number;
+  mastered_topics_count: number;
+  mastery_rate: number;
+  assignments_count: number;
+  assessments_count: number;
+}
+
+export interface CourseTopic {
+  id: number;
+  course_id: number;
+  title: string;
+  order_index: number;
+  status: string; // 'Not Started' | 'Learning' | 'Practicing' | 'Needs Revision' | 'Understood' | 'Mastered'
+  confidence_score: number; // 1 to 5
+  last_revised_at?: string | null;
+  notes?: string | null;
+  revisions_count: number;
+}
+
+export interface AssignmentSubtask {
+  id: number;
+  assignment_id: number;
+  title: string;
+  estimated_mins: number;
+  order_index: number;
+  is_completed: boolean;
+  completed_at?: string | null;
+}
+
+export interface Assignment {
+  id: number;
+  course_id: number;
+  course_code?: string;
+  course_title?: string;
+  title: string;
+  description?: string | null;
+  assignment_type: string;
+  assigned_date?: string | null;
+  deadline?: string | null;
+  has_explicit_time: boolean;
+  estimated_effort_hours: number;
+  actual_effort_hours: number;
+  priority: number;
+  status: string; // 'Not Started' | 'In Progress' | 'Submitted' | 'Completed' | 'Overdue'
+  max_marks?: number | null;
+  score_received?: number | null;
+  source_system: string;
+  source_url?: string | null;
+  notes?: string | null;
+  subtasks: AssignmentSubtask[];
+  subtasks_count: number;
+  completed_subtasks_count: number;
+  created_at: string;
+}
+
+export interface Assessment {
+  id: number;
+  course_id: number;
+  course_code?: string;
+  course_title?: string;
+  title: string;
+  assessment_type: string; // 'CAT' | 'Exam' | 'Quiz'
+  assessment_date: string;
+  has_explicit_time: boolean;
+  weight_percentage?: number | null;
+  max_marks?: number | null;
+  score_received?: number | null;
+  preparation_progress: number; // 0 - 100
+  notes?: string | null;
+}
+
+export interface AcademicResource {
+  id: number;
+  course_id: number;
+  course_code?: string;
+  topic_id?: number | null;
+  title: string;
+  resource_type: string; // 'URL' | 'PDF' | 'Video' | 'Note'
+  file_path?: string | null;
+  external_url?: string | null;
+  notes?: string | null;
+  created_at: string;
+}
+
+export interface AcademicBalanceData {
+  term: AcademicTerm | null;
+  courses: Course[];
+  total_target_hours: number;
+  total_actual_hours: number;
+  attention_alerts: Array<{
+    course_id: number;
+    code: string;
+    title: string;
+    severity: 'HIGH' | 'MEDIUM';
+    message: string;
+  }>;
+  distinction_readiness_score: number;
+  spaced_revision_queue: Array<{
+    topic_id: number;
+    topic_title: string;
+    course_code: string;
+    course_title: string;
+    confidence_score: number;
+    status: string;
+    reason: string;
+    recommended_mins: number;
+  }>;
+}
+
 export interface DashboardOverview {
   date: string;
   timezone: string;
@@ -54,6 +189,7 @@ export interface DashboardOverview {
       target_hours: number;
       actual_hours: number;
       attention_gap: number;
+      is_neglected?: boolean;
     }>;
     upcoming_assignments: Array<{
       id: number;
@@ -61,6 +197,7 @@ export interface DashboardOverview {
       course_code: string;
       deadline: string;
       priority: number;
+      status: string;
     }>;
     upcoming_assessments: Array<{
       id: number;
@@ -68,6 +205,7 @@ export interface DashboardOverview {
       course_code: string;
       assessment_date: string;
       assessment_type: string;
+      preparation_progress: number;
     }>;
     attention_alerts: string[];
   };
