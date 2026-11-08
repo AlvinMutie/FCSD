@@ -1,15 +1,21 @@
 import React, { useState } from 'react';
+import { useNavigate, Navigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import { Sparkles, Lock, Mail, User, AlertCircle, ArrowRight } from 'lucide-react';
 
 export const LoginPage: React.FC = () => {
-  const { login, register } = useAuth();
+  const navigate = useNavigate();
+  const { user, login, register } = useAuth();
   const [isRegistering, setIsRegistering] = useState(false);
   const [email, setEmail] = useState('student@jkuat.ac.ke');
   const [password, setPassword] = useState('Password123!');
   const [displayName, setDisplayName] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
+
+  if (user) {
+    return <Navigate to="/" replace />;
+  }
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -26,6 +32,7 @@ export const LoginPage: React.FC = () => {
       } else {
         await login(email, password);
       }
+      navigate('/', { replace: true });
     } catch (err: any) {
       setError(err.message || 'Authentication error');
     } finally {
