@@ -130,3 +130,4 @@ def test_skills_gap_analysis(auth_client):
     assert gap['readiness_indicator'] in ('High Match', 'Moderate Match', 'Prerequisites Needed')
     assert isinstance(gap['matched_skills'], list)
     assert isinstance(gap['gap_skills'], list)
+

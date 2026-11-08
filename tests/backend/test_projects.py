@@ -113,3 +113,4 @@ def test_analytics_weekly_summary(auth_client):
     domains = {d['domain'] for d in data['domain_breakdown']}
     assert 'Academic' in domains
     assert 'Skills' in domains
+
