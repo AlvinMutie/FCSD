@@ -1,0 +1,35 @@
+{
+  "manifest_version": 3,
+  "name": "MyLife Bridge — JKUAT SODeL Sync",
+  "version": "1.0.0",
+  "description": "Assisted, read-only academic synchronizer for JKUAT SODeL into MyLife OS.",
+  "permissions": [
+    "activeTab",
+    "storage"
+  ],
+  "host_permissions": [
+    "https://sodel3v2.jkuat.ac.ke/*",
+    "http://127.0.0.1:5000/*"
+  ],
+  "action": {
+    "default_popup": "popup.html",
+    "default_title": "MyLife Bridge"
+  },
+  "background": {
+    "service_worker": "src/background.js"
+  },
+  "content_scripts": [
+    {
+      "matches": ["https://sodel3v2.jkuat.ac.ke/*"],
+      "js": [
+        "src/normalizer.js",
+        "src/detector.js",
+        "src/extractors/course.js",
+        "src/extractors/assignment.js",
+        "src/extractors/assessment.js",
+        "src/extractors/announcement.js",
+        "src/content.js"
+      ]
+    }
+  ]
+}

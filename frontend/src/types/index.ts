@@ -169,6 +169,42 @@ export interface AcademicBalanceData {
   }>;
 }
 
+export interface PendingImportItem {
+  id: number;
+  user_id: number;
+  source_system: string;
+  source_url: string;
+  item_type: string;
+  normalized_title: string;
+  normalized_course_code?: string | null;
+  normalized_deadline?: string | null;
+  has_explicit_time: boolean;
+  status: string; // 'Pending Review' | 'Approved' | 'Rejected' | 'Needs Attention'
+  potential_duplicate_id?: number | null;
+  changes_diff?: any | null;
+  raw_data?: any;
+  created_at: string;
+  reviewed_at?: string | null;
+}
+
+export interface ImportHistoryItem {
+  id: number;
+  target_table: string;
+  target_record_id: number;
+  action_taken: string;
+  timestamp: string;
+  item_title: string;
+  source_url: string;
+  item_type: string;
+}
+
+export interface IntegrationStatus {
+  connected: boolean;
+  pairing_token?: string | null;
+  last_sync_at?: string | null;
+  pending_count: number;
+}
+
 export interface DashboardOverview {
   date: string;
   timezone: string;

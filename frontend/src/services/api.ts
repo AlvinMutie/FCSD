@@ -285,4 +285,60 @@ export const api = {
     if (!res.ok) throw new Error(data.error || 'Failed to fetch academic balance');
     return data;
   },
+
+  // Integrations & MyLife Bridge
+  async getIntegrationStatus(): Promise<any> {
+    const res = await fetch(`${BASE_URL}/integrations/sodel/status`, { credentials: 'include' });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Failed to fetch integration status');
+    return data;
+  },
+
+  async connectIntegration(): Promise<{ pairing_token: string }> {
+    const res = await fetch(`${BASE_URL}/integrations/sodel/connect`, {
+      method: 'POST',
+      credentials: 'include',
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Failed to connect integration');
+    return data;
+  },
+
+  async disconnectIntegration(): Promise<void> {
+    const res = await fetch(`${BASE_URL}/integrations/sodel/disconnect`, {
+      method: 'POST',
+      credentials: 'include',
+    });
+    if (!res.ok) throw new Error('Failed to disconnect');
+  },
+
+  async getPendingImports(status = 'ALL'): Promise<{ pending_imports: any[] }> {
+    const res = await fetch(`${BASE_URL}/integrations/sodel/pending?status=${status}`, { credentials: 'include' });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Failed to fetch pending imports');
+    return data;
+  },
+
+  async reviewPendingImport(importId: number, decision: string, edits: any = {}): Promise<any> {
+    const res = await fetch(`${BASE_URL}/integrations/sodel/review`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      credentials: 'include',
+      body: JSON.stringify({
+        import_id: importId,
+        decision,
+        ...edits,
+      }),
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Failed to review import');
+    return data;
+  },
+
+  async getImportHistory(): Promise<{ history: any[] }> {
+    const res = await fetch(`${BASE_URL}/integrations/sodel/history`, { credentials: 'include' });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Failed to fetch history');
+    return data;
+  },
 };

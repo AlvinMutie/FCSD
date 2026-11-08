@@ -10,6 +10,11 @@ from .academic import (
     Assessment,
     AcademicResource,
 )
+from .integration import (
+    Integration,
+    PendingImport,
+    ImportProvenance,
+)
 
 __all__ = [
     'db',
@@ -23,4 +28,7 @@ __all__ = [
     'AssignmentSubtask',
     'Assessment',
     'AcademicResource',
+    'Integration',
+    'PendingImport',
+    'ImportProvenance',
 ]
