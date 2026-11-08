@@ -33,6 +33,11 @@ from .career import (
     Application,
     InterviewPrep,
 )
+from .project import (
+    Project,
+    ProjectMilestone,
+    MilestoneTask,
+)
 
 __all__ = [
     'db',
@@ -61,4 +66,7 @@ __all__ = [
     'CVDocument',
     'Application',
     'InterviewPrep',
+    'Project',
+    'ProjectMilestone',
+    'MilestoneTask',
 ]

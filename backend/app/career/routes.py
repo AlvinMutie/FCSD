@@ -155,15 +155,18 @@ def delete_opportunity(opp_id):
 # ==========================================
 
 @career_bp.route('/cvs', methods=['GET'])
+@career_bp.route('/cv-documents', methods=['GET'])
 def list_cvs():
     user = get_current_user()
     if not user:
         return jsonify({'error': 'Unauthorized'}), 401
 
     cvs = CVDocument.query.filter_by(user_id=user.id).order_by(CVDocument.updated_at.desc()).all()
-    return jsonify({'cvs': [c.to_dict() for c in cvs]}), 200
+    cv_list = [c.to_dict() for c in cvs]
+    return jsonify({'cvs': cv_list, 'cv_documents': cv_list}), 200
 
 @career_bp.route('/cvs', methods=['POST'])
+@career_bp.route('/cv-documents', methods=['POST'])
 def add_cv():
     user = get_current_user()
     if not user:
@@ -185,9 +188,11 @@ def add_cv():
     )
     db.session.add(cv)
     db.session.commit()
-    return jsonify({'message': 'CV version recorded', 'cv': cv.to_dict()}), 201
+    cv_dict = cv.to_dict()
+    return jsonify({'message': 'CV version recorded', 'cv': cv_dict, 'cv_document': cv_dict}), 201
 
 @career_bp.route('/cvs/<int:cv_id>', methods=['DELETE'])
+@career_bp.route('/cv-documents/<int:cv_id>', methods=['DELETE'])
 def delete_cv(cv_id):
     user = get_current_user()
     if not user:

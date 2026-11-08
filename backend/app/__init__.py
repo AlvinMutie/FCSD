@@ -20,6 +20,9 @@ from .models import (
     LearningEvidence,
     JobOpportunity,
     CVDocument,
+    Project,
+    ProjectMilestone,
+    MilestoneTask,
 )
 from .auth.routes import auth_bp
 from .settings.routes import settings_bp
@@ -29,6 +32,8 @@ from .integrations.routes import integrations_bp
 from .scheduler.routes import scheduler_bp
 from .skills.routes import skills_bp
 from .career.routes import career_bp
+from .projects.routes import projects_bp
+from .analytics.routes import analytics_bp
 
 def create_app(config_class=Config):
     app = Flask(__name__)
@@ -48,6 +53,8 @@ def create_app(config_class=Config):
     app.register_blueprint(scheduler_bp)
     app.register_blueprint(skills_bp)
     app.register_blueprint(career_bp)
+    app.register_blueprint(projects_bp)
+    app.register_blueprint(analytics_bp)
 
     with app.app_context():
         db.create_all()
