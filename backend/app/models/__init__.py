@@ -20,6 +20,13 @@ from .scheduler import (
     ScheduleVersion,
     CalendarEvent,
 )
+from .skill import (
+    Skill,
+    LearningStage,
+    LearningTask,
+    LearningSession,
+    LearningEvidence,
+)
 
 __all__ = [
     'db',
@@ -39,4 +46,9 @@ __all__ = [
     'AvailabilityRule',
     'ScheduleVersion',
     'CalendarEvent',
+    'Skill',
+    'LearningStage',
+    'LearningTask',
+    'LearningSession',
+    'LearningEvidence',
 ]

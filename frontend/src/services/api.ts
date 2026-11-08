@@ -435,4 +435,113 @@ export const api = {
     });
     if (!res.ok) throw new Error('Failed to delete event');
   },
+
+  // Skills Development
+  async getSkillsTracks(): Promise<{ tracks: any[]; total_weekly_target: number; total_weekly_logged: number; completion_percentage: number }> {
+    const res = await fetch(`${BASE_URL}/skills/tracks`, { credentials: 'include' });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Failed to fetch skill tracks');
+    return data;
+  },
+
+  async updateSkillTrack(id: number, payload: any): Promise<{ track: any }> {
+    const res = await fetch(`${BASE_URL}/skills/tracks/${id}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      credentials: 'include',
+      body: JSON.stringify(payload),
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Failed to update track');
+    return data;
+  },
+
+  async getSkillRoadmap(skillId: number): Promise<{ track: any; stages: any[] }> {
+    const res = await fetch(`${BASE_URL}/skills/tracks/${skillId}/roadmap`, { credentials: 'include' });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Failed to fetch roadmap');
+    return data;
+  },
+
+  async addSkillStage(skillId: number, title: string): Promise<{ stage: any }> {
+    const res = await fetch(`${BASE_URL}/skills/tracks/${skillId}/stages`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      credentials: 'include',
+      body: JSON.stringify({ title }),
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Failed to add stage');
+    return data;
+  },
+
+  async addSkillTask(stageId: number, payload: { title: string; estimated_hours: number; description?: string }): Promise<{ task: any }> {
+    const res = await fetch(`${BASE_URL}/skills/stages/${stageId}/tasks`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      credentials: 'include',
+      body: JSON.stringify(payload),
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Failed to add task');
+    return data;
+  },
+
+  async toggleSkillTask(taskId: number): Promise<{ task: any }> {
+    const res = await fetch(`${BASE_URL}/skills/tasks/${taskId}/toggle`, {
+      method: 'PATCH',
+      credentials: 'include',
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Failed to toggle task');
+    return data;
+  },
+
+  async getSkillSessions(skillId?: number): Promise<{ sessions: any[] }> {
+    const url = skillId ? `${BASE_URL}/skills/sessions?skill_id=${skillId}` : `${BASE_URL}/skills/sessions`;
+    const res = await fetch(url, { credentials: 'include' });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Failed to fetch learning sessions');
+    return data;
+  },
+
+  async recordSkillSession(payload: any): Promise<{ session: any }> {
+    const res = await fetch(`${BASE_URL}/skills/sessions`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      credentials: 'include',
+      body: JSON.stringify(payload),
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Failed to record session');
+    return data;
+  },
+
+  async getSkillEvidence(skillId?: number): Promise<{ evidence: any[] }> {
+    const url = skillId ? `${BASE_URL}/skills/evidence?skill_id=${skillId}` : `${BASE_URL}/skills/evidence`;
+    const res = await fetch(url, { credentials: 'include' });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Failed to fetch practical evidence');
+    return data;
+  },
+
+  async addSkillEvidence(payload: any): Promise<{ evidence: any }> {
+    const res = await fetch(`${BASE_URL}/skills/evidence`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      credentials: 'include',
+      body: JSON.stringify(payload),
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Failed to add evidence');
+    return data;
+  },
+
+  async deleteSkillEvidence(id: number): Promise<void> {
+    const res = await fetch(`${BASE_URL}/skills/evidence/${id}`, {
+      method: 'DELETE',
+      credentials: 'include',
+    });
+    if (!res.ok) throw new Error('Failed to delete evidence');
+  },
 };

@@ -169,6 +169,67 @@ export interface AcademicBalanceData {
   }>;
 }
 
+export interface SkillTrack {
+  id: number;
+  user_id: number;
+  track_name: string;
+  current_level: string;
+  weekly_target_hours: number;
+  color_hex: string;
+  total_hours_logged: number;
+  weekly_hours_logged: number;
+  stages_count: number;
+  tasks_count: number;
+  completed_tasks_count: number;
+  task_completion_rate: number;
+  evidence_count: number;
+}
+
+export interface LearningTaskItem {
+  id: number;
+  stage_id: number;
+  title: string;
+  description?: string | null;
+  estimated_hours: number;
+  is_completed: boolean;
+  completed_at?: string | null;
+}
+
+export interface LearningStageItem {
+  id: number;
+  skill_id: number;
+  title: string;
+  order_index: number;
+  status: string;
+  tasks: LearningTaskItem[];
+  tasks_count: number;
+  completed_count: number;
+}
+
+export interface LearningSessionItem {
+  id: number;
+  skill_id: number;
+  skill_track?: string | null;
+  task_id?: number | null;
+  session_date: string;
+  duration_mins: number;
+  topic_studied: string;
+  key_learnings?: string | null;
+  difficulties_faced?: string | null;
+  next_steps?: string | null;
+}
+
+export interface LearningEvidenceItem {
+  id: number;
+  skill_id: number;
+  skill_track?: string | null;
+  title: string;
+  evidence_type: 'GitHub' | 'Project' | 'Screenshot' | 'Demo' | 'Certificate';
+  url_or_path: string;
+  description?: string | null;
+  date_achieved: string;
+}
+
 export interface AvailabilityRuleItem {
   id: number;
   user_id: number;
