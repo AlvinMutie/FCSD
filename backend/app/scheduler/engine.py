@@ -138,7 +138,7 @@ class SchedulingEngine:
                     ))
                 else:
                     day_slots.append((
-                        datetime.combine(curr_date, time(9, 0)),
+                        datetime.combine(curr_date, time(8, 0)),
                         datetime.combine(curr_date, time(13, 0))
                     ))
                     day_slots.append((
@@ -461,13 +461,18 @@ class SchedulingEngine:
                     score = t.priority_score * 10.0
 
                     # Time of day suitability:
-                    # Morning slots (before 13:00): favor Core Study
-                    # Afternoon slots (14:00+): favor Revision (active recall) and Skills (hands-on)
+                    # Morning slots (08:00 - 13:00): Core Study is prioritized first to guarantee at least 3 hours (two 90m blocks: 08:00 - 11:15)!
                     if curr_pointer.hour < 13:
                         if is_study:
-                            score += 45.0
+                            if day_study_count[curr_date] < 2:
+                                score += 80.0  # Lock in both 90m study blocks first (at least 3h daily study)
+                            else:
+                                score += 15.0
                         elif is_revision:
-                            score += 10.0
+                            if day_study_count[curr_date] >= 2:
+                                score += 60.0  # Once 3h study is placed, place 48h revision block before lunch
+                            else:
+                                score += 10.0
                     else:
                         if is_revision:
                             score += 45.0
