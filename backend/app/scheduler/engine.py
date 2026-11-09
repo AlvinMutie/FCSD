@@ -26,6 +26,7 @@ class SchedulableTask:
     explanation: str = ""
     related_entity_type: Optional[str] = None
     related_entity_id: Optional[int] = None
+    round_index: int = 0
 
 class SchedulingEngine:
     def __init__(self, user: User):
@@ -175,12 +176,13 @@ class SchedulingEngine:
                 title=f"Assessment Prep: {asm.course.code} - {asm.title}",
                 category='academic',
                 duration_mins=90,
-                priority_score=p,
+                priority_score=p + 0.4,
                 deadline=asm.assessment_date,
                 course_code=asm.course.code,
                 explanation=f"Targeted preparation for upcoming {asm.assessment_type} in {days_left} days",
                 related_entity_type='assessment',
-                related_entity_id=asm.id
+                related_entity_id=asm.id,
+                round_index=0
             ))
 
         # 2. Assignments needing effort
@@ -195,7 +197,7 @@ class SchedulingEngine:
         )
         for a in assignments:
             remaining_hours = max(0.5, a.estimated_effort_hours - a.actual_effort_hours)
-            sessions_needed = max(1, int(round((remaining_hours * 60) / 90)))
+            sessions_needed = max(1, min(2, int(round((remaining_hours * 60) / 90))))
             for s_idx in range(sessions_needed):
                 p = self.compute_task_priority(
                     deadline=a.deadline,
@@ -208,19 +210,21 @@ class SchedulingEngine:
                     title=f"Assignment Session: {a.course.code} - {a.title}",
                     category='academic',
                     duration_mins=90,
-                    priority_score=p,
+                    priority_score=p + 0.2,
                     deadline=a.deadline,
                     course_code=a.course.code,
                     explanation=f"Work on assignment due {a.deadline.strftime('%b %d') if a.deadline else 'soon'}",
                     related_entity_type='assignment',
-                    related_entity_id=a.id
+                    related_entity_id=a.id,
+                    round_index=s_idx
                 ))
 
-        # 3. Academic Balanced Course Study (Ensure every course meets distinction target)
+        # 3. Academic Balanced Course Study (Option 2: Guaranteed 2-session floor + adaptive surge)
         courses = Course.query.join(AcademicTerm).filter(
             AcademicTerm.user_id == self.user.id,
             Course.is_archived == False
         ).all()
+
         for c in courses:
             clean_title = c.title
             if c.code and c.code != 'SODEL UNIT' and not clean_title.startswith(c.code):
@@ -228,25 +232,63 @@ class SchedulingEngine:
             else:
                 display_name = clean_title
 
-            gap = c.attention_gap
-            sessions_to_schedule = max(1, min(3, int(round((gap * 60) / 90)))) if gap > 0 else 1
-            for s_idx in range(sessions_to_schedule):
-                p = self.compute_task_priority(
-                    deadline=None,
-                    importance=c.academic_importance,
-                    difficulty=c.difficulty_level,
-                    attention_gap=c.attention_gap
-                )
+            p = self.compute_task_priority(
+                deadline=None,
+                importance=c.academic_importance,
+                difficulty=c.difficulty_level,
+                attention_gap=c.attention_gap
+            )
+
+            # Session 1: Guaranteed baseline floor (Round 0)
+            tasks.append(SchedulableTask(
+                id=f"crs_{c.id}_0",
+                title=f"Study: {display_name}",
+                category='academic',
+                duration_mins=90,
+                priority_score=p,
+                course_code=c.code,
+                explanation=f"Baseline study session 1 for {c.title}",
+                related_entity_type='course',
+                related_entity_id=c.id,
+                round_index=0
+            ))
+
+            # Session 2: Guaranteed baseline floor (Round 1, spaced)
+            tasks.append(SchedulableTask(
+                id=f"crs_{c.id}_1",
+                title=f"Study & Practice: {display_name}",
+                category='academic',
+                duration_mins=90,
+                priority_score=p,
+                course_code=c.code,
+                explanation=f"Baseline study session 2 for {c.title}",
+                related_entity_type='course',
+                related_entity_id=c.id,
+                round_index=1
+            ))
+
+            # Session 3: Adaptive Boost (Round 2)
+            # Surges for high difficulty, distinction importance, large gap, or upcoming tasks
+            has_urgent_work = any(asm.course_id == c.id for asm in assessments) or any(a.course_id == c.id for a in assignments)
+            qualifies_for_boost = (
+                c.difficulty_level >= 4 or
+                c.academic_importance >= 5 or
+                c.attention_gap >= 4.0 or
+                has_urgent_work
+            )
+
+            if qualifies_for_boost:
                 tasks.append(SchedulableTask(
-                    id=f"crs_{c.id}_{s_idx}",
-                    title=f"Study: {display_name}",
+                    id=f"crs_{c.id}_2",
+                    title=f"Deep Revision: {display_name}",
                     category='academic',
                     duration_mins=90,
-                    priority_score=p,
+                    priority_score=p + 0.05,
                     course_code=c.code,
-                    explanation=f"Dedicated study coverage for {c.title}",
+                    explanation=f"Adaptive boost: problem solving & distinction prep for {c.title}",
                     related_entity_type='course',
-                    related_entity_id=c.id
+                    related_entity_id=c.id,
+                    round_index=2
                 ))
 
         # 4. Technical Skills Tracks (4 tracks: Python, Cyber, Web, Net)
@@ -257,17 +299,27 @@ class SchedulingEngine:
             ('Networking', 3.0),
         ]
         for track_name, weekly_target in skill_tracks:
-            sessions_count = max(1, min(2, int(round(weekly_target / 1.5))))
-            for s_idx in range(sessions_count):
-                p = self.compute_task_priority(deadline=None, importance=3, difficulty=3)
+            p = self.compute_task_priority(deadline=None, importance=3, difficulty=3)
+            tasks.append(SchedulableTask(
+                id=f"skill_{track_name}_0",
+                title=f"Technical Skill Track: {track_name}",
+                category='skill',
+                duration_mins=90,
+                priority_score=p,
+                explanation=f"Weekly technical proficiency building ({track_name})",
+                related_entity_type='skill',
+                round_index=0
+            ))
+            if weekly_target >= 4.0:
                 tasks.append(SchedulableTask(
-                    id=f"skill_{track_name}_{s_idx}",
-                    title=f"Technical Skill Track: {track_name}",
+                    id=f"skill_{track_name}_1",
+                    title=f"Technical Skill Lab: {track_name}",
                     category='skill',
                     duration_mins=90,
                     priority_score=p,
-                    explanation=f"Weekly technical proficiency building ({track_name})",
-                    related_entity_type='skill'
+                    explanation=f"Hands-on project lab ({track_name})",
+                    related_entity_type='skill',
+                    round_index=1
                 ))
 
         # 5. Career & Job Applications (based on target weekly apps)
@@ -281,7 +333,8 @@ class SchedulingEngine:
                 duration_mins=60,
                 priority_score=p,
                 explanation="Pursuing internships and technical roles",
-                related_entity_type='career'
+                related_entity_type='career',
+                round_index=1
             ))
 
         return tasks
@@ -367,7 +420,7 @@ class SchedulingEngine:
         # 4. Sort tasks by priority descending
         all_tasks.sort(key=lambda x: x.priority_score, reverse=True)
 
-        # 5. Pack tasks into free slots
+        # 5. Pack tasks into free slots with Round-Robin Interleaving & Daily Diversity
         scheduled_events: List[CalendarEvent] = []
         version_num = ScheduleVersion.query.filter_by(user_id=self.user.id).count() + 1
         version = ScheduleVersion(
@@ -381,41 +434,96 @@ class SchedulingEngine:
         db.session.add(version)
         db.session.flush()
 
-        slot_idx = 0
-        current_slot_pointer = None
+        unplaced_tasks = list(all_tasks)
 
-        for task in all_tasks:
-            task_duration = timedelta(minutes=task.duration_mins)
-            placed = False
+        # Track daily allocations to guarantee diversity (max 1 session per course/skill per day)
+        day_course_ids: Dict[date, set] = {}
+        day_skill_names: Dict[date, set] = {}
+        last_course_date: Dict[int, date] = {}
 
-            while slot_idx < len(free_slots) and not placed:
-                slot_start, slot_end = free_slots[slot_idx]
-                if current_slot_pointer is None or current_slot_pointer < slot_start:
-                    current_slot_pointer = slot_start
+        for slot_start, slot_end in free_slots:
+            curr_pointer = slot_start
+            while curr_pointer < slot_end and unplaced_tasks:
+                curr_date = curr_pointer.date()
+                if curr_date not in day_course_ids:
+                    day_course_ids[curr_date] = set()
+                if curr_date not in day_skill_names:
+                    day_skill_names[curr_date] = set()
 
-                task_end = current_slot_pointer + task_duration
-                if task_end <= slot_end:
+                remaining_mins = int((slot_end - curr_pointer).total_seconds() / 60)
+                if remaining_mins < 45:
+                    break
+
+                best_idx = None
+                best_score = -999.0
+
+                for idx, t in enumerate(unplaced_tasks):
+                    if t.duration_mins > remaining_mins:
+                        continue
+
+                    # Daily diversity check (max 1 study session per course per day)
+                    if t.related_entity_type == 'course' and t.related_entity_id:
+                        if t.related_entity_id in day_course_ids[curr_date]:
+                            continue
+
+                    # Max 1 session per skill track per day
+                    if t.related_entity_type == 'skill':
+                        if t.title in day_skill_names[curr_date]:
+                            continue
+
+                    # Spacing bonus: encourage at least 24-48 hours gap between same course sessions
+                    spacing_bonus = 0.0
+                    if t.related_entity_type == 'course' and t.related_entity_id in last_course_date:
+                        gap_days = (curr_date - last_course_date[t.related_entity_id]).days
+                        if gap_days >= 2:
+                            spacing_bonus = 0.5
+                        elif gap_days == 1:
+                            spacing_bonus = -0.3
+
+                    # Prioritize: Lower round_index first (Round 0 before Round 1 before Round 2)
+                    # Then priority_score + spacing bonus
+                    score = (100.0 - t.round_index * 25.0) + t.priority_score * 5.0 + spacing_bonus
+
+                    if score > best_score:
+                        best_score = score
+                        best_idx = idx
+
+                # Fallback: if no task met strict diversity, allow placing remaining tasks that fit
+                if best_idx is None and remaining_mins >= 60:
+                    for idx, t in enumerate(unplaced_tasks):
+                        if t.duration_mins <= remaining_mins:
+                            score = t.priority_score
+                            if score > best_score:
+                                best_score = score
+                                best_idx = idx
+
+                if best_idx is not None:
+                    chosen_task = unplaced_tasks.pop(best_idx)
+                    task_end = curr_pointer + timedelta(minutes=chosen_task.duration_mins)
+
                     event = CalendarEvent(
                         user_id=self.user.id,
                         schedule_version_id=version.id,
-                        title=task.title,
-                        category=task.category,
-                        start_time=current_slot_pointer,
+                        title=chosen_task.title,
+                        category=chosen_task.category,
+                        start_time=curr_pointer,
                         end_time=task_end,
                         is_locked=False,
-                        related_entity_type=task.related_entity_type,
-                        related_entity_id=task.related_entity_id,
-                        explanation=task.explanation
+                        related_entity_type=chosen_task.related_entity_type,
+                        related_entity_id=chosen_task.related_entity_id,
+                        explanation=chosen_task.explanation
                     )
                     scheduled_events.append(event)
-                    current_slot_pointer = task_end + timedelta(minutes=15)
-                    placed = True
-                else:
-                    slot_idx += 1
-                    current_slot_pointer = None
 
-            if slot_idx >= len(free_slots):
-                break  # Reached capacity, remaining lower priority tasks deferred
+                    if chosen_task.related_entity_type == 'course' and chosen_task.related_entity_id:
+                        day_course_ids[curr_date].add(chosen_task.related_entity_id)
+                        last_course_date[chosen_task.related_entity_id] = curr_date
+                    elif chosen_task.related_entity_type == 'skill':
+                        day_skill_names[curr_date].add(chosen_task.title)
+
+                    curr_pointer = task_end + timedelta(minutes=15)
+                else:
+                    break
 
         db.session.add_all(scheduled_events)
         db.session.commit()
