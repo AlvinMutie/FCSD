@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import FullCalendar from '@fullcalendar/react';
 import dayGridPlugin from '@fullcalendar/daygrid';
 import timeGridPlugin from '@fullcalendar/timegrid';
@@ -19,6 +19,11 @@ import {
   Info,
   Layers,
   Edit3,
+  Download,
+  Printer,
+  FileSpreadsheet,
+  ChevronDown,
+  BookOpen,
 } from 'lucide-react';
 import { api } from '../../services/api';
 import { CalendarEventItem, AvailabilityRuleItem, OverloadReport } from '../../types';
@@ -37,6 +42,24 @@ export const TimetablePage: React.FC = () => {
   const [selectedEvent, setSelectedEvent] = useState<CalendarEventItem | null>(null);
   const [showAvailabilityDrawer, setShowAvailabilityDrawer] = useState(false);
   const [showNewEventModal, setShowNewEventModal] = useState(false);
+  const [showDownloadMenu, setShowDownloadMenu] = useState(false);
+  const downloadMenuRef = useRef<HTMLDivElement>(null);
+
+  // Close download menu when clicking outside
+  const handleOutsideClick = useCallback((e: MouseEvent) => {
+    if (downloadMenuRef.current && !downloadMenuRef.current.contains(e.target as Node)) {
+      setShowDownloadMenu(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (showDownloadMenu) {
+      document.addEventListener('mousedown', handleOutsideClick);
+    } else {
+      document.removeEventListener('mousedown', handleOutsideClick);
+    }
+    return () => document.removeEventListener('mousedown', handleOutsideClick);
+  }, [showDownloadMenu, handleOutsideClick]);
 
   // New rule state
   const [newDayOfWeek, setNewDayOfWeek] = useState(1);
@@ -155,6 +178,111 @@ export const TimetablePage: React.FC = () => {
     } catch (err: any) {
       alert(err.message);
     }
+  };
+
+  const handleDownloadICS = () => {
+    if (events.length === 0) {
+      alert('No timetable sessions found to export. Generate your schedule first!');
+      return;
+    }
+    const pad = (n: number) => (n < 10 ? '0' + n : n.toString());
+    const formatICSDate = (dtStr: string) => {
+      const d = new Date(dtStr);
+      return `${d.getUTCFullYear()}${pad(d.getUTCMonth() + 1)}${pad(d.getUTCDate())}T${pad(d.getUTCHours())}${pad(d.getUTCMinutes())}${pad(d.getUTCSeconds())}Z`;
+    };
+
+    const icsLines = [
+      'BEGIN:VCALENDAR',
+      'VERSION:2.0',
+      'PRODID:-//MyLife OS//Adaptive Timetable//EN',
+      'CALSCALE:GREGORIAN',
+      'METHOD:PUBLISH',
+      'X-WR-CALNAME:MyLife OS Timetable',
+      'X-WR-TIMEZONE:Africa/Nairobi',
+    ];
+
+    events.forEach((ev) => {
+      const dtStart = formatICSDate(ev.start_time);
+      const dtEnd = formatICSDate(ev.end_time);
+      const summary = ev.title.replace(/[,;]/g, ' ');
+      const desc = (ev.explanation || `Category: ${ev.category}`).replace(/[,;]/g, ' ');
+      const uid = `mylife-session-${ev.id}-${Date.now()}@mylifeos.app`;
+
+      icsLines.push(
+        'BEGIN:VEVENT',
+        `UID:${uid}`,
+        `DTSTAMP:${formatICSDate(new Date().toISOString())}`,
+        `DTSTART:${dtStart}`,
+        `DTEND:${dtEnd}`,
+        `SUMMARY:${summary}`,
+        `DESCRIPTION:${desc}`,
+        `CATEGORIES:${ev.category ? ev.category.toUpperCase() : 'STUDY'}`,
+        'STATUS:CONFIRMED',
+        'END:VEVENT'
+      );
+    });
+
+    icsLines.push('END:VCALENDAR');
+
+    const blob = new Blob([icsLines.join('\r\n')], { type: 'text/calendar;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.setAttribute('download', `MyLife_OS_Timetable_${new Date().toISOString().split('T')[0]}.ics`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+    setShowDownloadMenu(false);
+    setActionNotice('Downloaded .ics file! You can import it directly into Google Calendar, Apple Calendar, or Outlook.');
+    setTimeout(() => setActionNotice(null), 6000);
+  };
+
+  const handleDownloadCSV = () => {
+    if (events.length === 0) {
+      alert('No timetable sessions found to export. Generate your schedule first!');
+      return;
+    }
+    const headers = ['Day', 'Date', 'Start Time', 'End Time', 'Duration (mins)', 'Session Title', 'Category', 'Locked', 'Completed', 'Details'];
+    const rows = events.map((e) => {
+      const d = new Date(e.start_time);
+      const day = d.toLocaleDateString('en-KE', { weekday: 'long' });
+      const dateStr = d.toLocaleDateString('en-KE');
+      const start = d.toLocaleTimeString('en-KE', { hour: '2-digit', minute: '2-digit' });
+      const end = new Date(e.end_time).toLocaleTimeString('en-KE', { hour: '2-digit', minute: '2-digit' });
+      const dur = Math.round((new Date(e.end_time).getTime() - d.getTime()) / 60000);
+      return [
+        `"${day}"`,
+        `"${dateStr}"`,
+        `"${start}"`,
+        `"${end}"`,
+        dur,
+        `"${e.title.replace(/"/g, '""')}"`,
+        `"${e.category}"`,
+        e.is_locked ? 'Yes' : 'No',
+        e.is_completed ? 'Yes' : 'No',
+        `"${(e.explanation || '').replace(/"/g, '""')}"`,
+      ].join(',');
+    });
+
+    const csvContent = [headers.join(','), ...rows].join('\r\n');
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.setAttribute('download', `MyLife_OS_Timetable_${new Date().toISOString().split('T')[0]}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+    setShowDownloadMenu(false);
+    setActionNotice('Downloaded spreadsheet CSV file!');
+    setTimeout(() => setActionNotice(null), 5000);
+  };
+
+  const handlePrintTimetable = () => {
+    setShowDownloadMenu(false);
+    window.print();
   };
 
   const handleEventDrop = async (info: any) => {
@@ -288,20 +416,30 @@ export const TimetablePage: React.FC = () => {
 
   const dayNames = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
 
+  const totalHours = events.reduce((acc, ev) => {
+    const dur = (new Date(ev.end_time).getTime() - new Date(ev.start_time).getTime()) / 3600000;
+    return acc + dur;
+  }, 0);
+
+  const academicCount = events.filter((e) => e.category === 'academic').length;
+  const skillsCount = events.filter((e) => e.category === 'skill').length;
+  const careerCount = events.filter((e) => e.category === 'career').length;
+  const completedCount = events.filter((e) => e.is_completed).length;
+
   return (
     <div className="space-y-6">
       {/* Top Banner & Main Actions */}
-      <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 pb-2 border-b border-slate-800">
+      <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 pb-2 border-b border-slate-800 no-print">
         <div>
           <div className="flex items-center gap-2">
             <h1 className="text-2xl font-bold text-slate-100 tracking-tight">Adaptive Timetable</h1>
             <span className="px-2.5 py-0.5 rounded-full bg-brand-500/10 border border-brand-500/30 text-brand-400 text-xs font-semibold flex items-center gap-1">
               <Sparkles className="w-3.5 h-3.5" />
-              <span>Deterministic Scheduling Engine</span>
+              <span>Balanced Floor & Interleaved Engine</span>
             </span>
           </div>
           <p className="text-sm text-slate-400 mt-1">
-            Zero-overlap constraint math &bull; Academic balance priority &bull; Protected personal rest
+            Equal baseline study &bull; Spaced repetition &bull; Zero overlaps &bull; Protected personal time
           </p>
         </div>
 
@@ -326,6 +464,62 @@ export const TimetablePage: React.FC = () => {
             <Sparkles className={`w-3.5 h-3.5 ${generating ? 'animate-spin' : ''}`} />
             <span>{generating ? 'Calculating Schedule...' : 'Generate Week Timetable'}</span>
           </button>
+
+          {/* Download Timetable Dropdown */}
+          <div className="relative" ref={downloadMenuRef}>
+            <button
+              onClick={() => setShowDownloadMenu(!showDownloadMenu)}
+              className="px-3.5 py-2 rounded-xl bg-slate-900 border border-slate-700 hover:bg-slate-800 text-slate-200 text-xs font-semibold flex items-center gap-1.5 cursor-pointer shadow-sm transition-colors"
+              title="Download timetable for calendar apps, spreadsheet, or PDF"
+            >
+              <Download className="w-3.5 h-3.5 text-brand-400" />
+              <span>Download</span>
+              <ChevronDown className={`w-3 h-3 text-slate-400 transition-transform ${showDownloadMenu ? 'rotate-180' : ''}`} />
+            </button>
+
+            {showDownloadMenu && (
+              <div className="absolute right-0 mt-2 w-64 rounded-2xl bg-slate-900 border border-slate-700 shadow-2xl p-2 z-50 space-y-1 animate-fadeIn">
+                <button
+                  onClick={handleDownloadICS}
+                  className="w-full text-left p-2.5 rounded-xl hover:bg-slate-800/80 transition-colors flex items-start gap-2.5 cursor-pointer"
+                >
+                  <div className="p-1.5 rounded-lg bg-indigo-500/10 text-indigo-400 shrink-0">
+                    <CalendarIcon className="w-4 h-4" />
+                  </div>
+                  <div>
+                    <span className="text-xs font-semibold text-slate-100 block">iCalendar (.ics)</span>
+                    <span className="text-[10px] text-slate-400 block leading-tight">Syncs directly with Google Calendar, Apple Calendar, Outlook & Phone</span>
+                  </div>
+                </button>
+
+                <button
+                  onClick={handleDownloadCSV}
+                  className="w-full text-left p-2.5 rounded-xl hover:bg-slate-800/80 transition-colors flex items-start gap-2.5 cursor-pointer"
+                >
+                  <div className="p-1.5 rounded-lg bg-emerald-500/10 text-emerald-400 shrink-0">
+                    <FileSpreadsheet className="w-4 h-4" />
+                  </div>
+                  <div>
+                    <span className="text-xs font-semibold text-slate-100 block">Spreadsheet (.csv)</span>
+                    <span className="text-[10px] text-slate-400 block leading-tight">Tabular export for Excel, Google Sheets or Notion</span>
+                  </div>
+                </button>
+
+                <button
+                  onClick={handlePrintTimetable}
+                  className="w-full text-left p-2.5 rounded-xl hover:bg-slate-800/80 transition-colors flex items-start gap-2.5 cursor-pointer"
+                >
+                  <div className="p-1.5 rounded-lg bg-sky-500/10 text-sky-400 shrink-0">
+                    <Printer className="w-4 h-4" />
+                  </div>
+                  <div>
+                    <span className="text-xs font-semibold text-slate-100 block">Print / Save as PDF</span>
+                    <span className="text-[10px] text-slate-400 block leading-tight">Formatted printable study schedule sheet</span>
+                  </div>
+                </button>
+              </div>
+            )}
+          </div>
 
           {/* Clear Week Button */}
           <button
@@ -359,11 +553,68 @@ export const TimetablePage: React.FC = () => {
 
       {/* Action Notification Banner */}
       {actionNotice && (
-        <div className="p-3.5 rounded-2xl bg-emerald-500/10 border border-emerald-500/30 text-emerald-300 text-xs flex items-center gap-2 animate-fadeIn">
+        <div className="p-3.5 rounded-2xl bg-emerald-500/10 border border-emerald-500/30 text-emerald-300 text-xs flex items-center gap-2 animate-fadeIn no-print">
           <CheckCircle2 className="w-4 h-4 shrink-0 text-emerald-400" />
           <span>{actionNotice}</span>
         </div>
       )}
+
+      {/* Weekly Schedule Analytics Cards */}
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 no-print">
+        <div className="p-4 rounded-2xl bg-slate-900 border border-slate-800 flex items-center gap-3 shadow-sm">
+          <div className="w-10 h-10 rounded-xl bg-brand-500/10 border border-brand-500/20 text-brand-400 flex items-center justify-center font-bold text-sm shrink-0">
+            {events.length}
+          </div>
+          <div>
+            <span className="text-[10px] uppercase font-bold tracking-wider text-slate-400 block">Weekly Sessions</span>
+            <span className="text-sm font-bold text-slate-100">{Math.round(totalHours * 10) / 10}h scheduled</span>
+          </div>
+        </div>
+
+        <div className="p-4 rounded-2xl bg-slate-900 border border-slate-800 flex items-center gap-3 shadow-sm">
+          <div className="w-10 h-10 rounded-xl bg-sky-500/10 border border-sky-500/20 text-sky-400 flex items-center justify-center font-bold text-sm shrink-0">
+            <BookOpen className="w-5 h-5" />
+          </div>
+          <div>
+            <span className="text-[10px] uppercase font-bold tracking-wider text-slate-400 block">SODeL Units</span>
+            <span className="text-sm font-bold text-slate-100">{academicCount} Study Blocks</span>
+          </div>
+        </div>
+
+        <div className="p-4 rounded-2xl bg-slate-900 border border-slate-800 flex items-center gap-3 shadow-sm">
+          <div className="w-10 h-10 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 flex items-center justify-center font-bold text-sm shrink-0">
+            <CheckCircle2 className="w-5 h-5" />
+          </div>
+          <div>
+            <span className="text-[10px] uppercase font-bold tracking-wider text-slate-400 block">Technical Tracks</span>
+            <span className="text-sm font-bold text-slate-100">{skillsCount} Lab Blocks</span>
+          </div>
+        </div>
+
+        <div className="p-4 rounded-2xl bg-slate-900 border border-slate-800 flex items-center gap-3 shadow-sm">
+          <div className="w-10 h-10 rounded-xl bg-amber-500/10 border border-amber-500/20 text-amber-400 flex items-center justify-center font-bold text-sm shrink-0">
+            {completedCount}/{events.length}
+          </div>
+          <div>
+            <span className="text-[10px] uppercase font-bold tracking-wider text-slate-400 block">Weekly Progress</span>
+            <span className="text-sm font-bold text-slate-100">
+              {events.length > 0 ? Math.round((completedCount / events.length) * 100) : 0}% Completed
+            </span>
+          </div>
+        </div>
+      </div>
+
+      {/* Category Legend & Guidance */}
+      <div className="flex flex-wrap items-center justify-between gap-3 text-xs text-slate-400 no-print px-1 py-1 bg-slate-900/60 border border-slate-800/80 rounded-xl">
+        <div className="flex flex-wrap items-center gap-4 px-2">
+          <span className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-full bg-indigo-500"></span> SODeL Units</span>
+          <span className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-full bg-emerald-500"></span> Technical Skills</span>
+          <span className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-full bg-amber-500"></span> Career & Jobs</span>
+          <span className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-full bg-rose-500"></span> Assignments & Prep</span>
+          <span className="flex items-center gap-1.5"><Lock className="w-3 h-3 text-slate-400" /> Locked Session</span>
+        </div>
+        <span className="text-[11px] text-slate-500 px-2">Click any session to view explanation, edit times, lock slot, or mark complete.</span>
+      </div>
 
       {/* Overload Alert Banner */}
       {overloadReport?.is_overloaded && (
@@ -379,26 +630,6 @@ export const TimetablePage: React.FC = () => {
           </div>
         </div>
       )}
-
-      {/* Category Legend */}
-      <div className="flex flex-wrap items-center gap-4 text-xs text-slate-400 px-1">
-        <div className="flex items-center gap-1.5">
-          <span className="w-3 h-3 rounded-md bg-indigo-600"></span>
-          <span>Academic Units & CATs</span>
-        </div>
-        <div className="flex items-center gap-1.5">
-          <span className="w-3 h-3 rounded-md bg-emerald-600"></span>
-          <span>Technical Skills Tracks (4 Tracks)</span>
-        </div>
-        <div className="flex items-center gap-1.5">
-          <span className="w-3 h-3 rounded-md bg-purple-600"></span>
-          <span>Career & Applications</span>
-        </div>
-        <div className="flex items-center gap-1.5">
-          <span className="w-3 h-3 rounded-md bg-amber-600"></span>
-          <span>Personal & Rest</span>
-        </div>
-      </div>
 
       {/* FullCalendar Interactive Workspace */}
       <div className="p-4 sm:p-6 rounded-3xl bg-slate-900 border border-slate-800 shadow-2xl">

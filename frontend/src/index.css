@@ -28,3 +28,29 @@ body {
   background: #475569;
 }
 
+/* Print styling for PDF / paper export */
+@media print {
+  body {
+    background-color: #ffffff !important;
+    color: #0f172a !important;
+  }
+  aside, header, nav, .no-print {
+    display: none !important;
+  }
+  main {
+    margin-left: 0 !important;
+    padding: 12px !important;
+    width: 100% !important;
+  }
+  .fc {
+    color: #0f172a !important;
+  }
+  .fc-theme-standard td, .fc-theme-standard th {
+    border-color: #cbd5e1 !important;
+  }
+  .fc-event {
+    box-shadow: none !important;
+    border: 1px solid #64748b !important;
+  }
+}
+
