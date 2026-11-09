@@ -24,6 +24,7 @@
       "js": [
         "src/normalizer.js",
         "src/detector.js",
+        "src/extractors/course_overview.js",
         "src/extractors/course.js",
         "src/extractors/assignment.js",
         "src/extractors/assessment.js",

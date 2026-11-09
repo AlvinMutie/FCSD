@@ -93,6 +93,18 @@ export const IntegrationsPage: React.FC = () => {
     }
   };
 
+  const handleBatchReview = async (decision: 'APPROVE' | 'REJECT', itemType?: string) => {
+    try {
+      setLoading(true);
+      await api.reviewBatchPendingImports(decision, itemType);
+      await loadData();
+    } catch (err: any) {
+      alert(err.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const openEditModal = (item: PendingImportItem) => {
     setEditingItem(item);
     setEditTitle(item.normalized_title);
@@ -166,13 +178,24 @@ export const IntegrationsPage: React.FC = () => {
                 Items extracted by MyLife Bridge remain staged here until you approve, edit, or reject them.
               </p>
             </div>
-            <button
-              onClick={loadData}
-              className="p-1.5 rounded-lg text-slate-400 hover:text-slate-200 hover:bg-slate-800"
-              title="Refresh"
-            >
-              <RefreshCw className="w-4 h-4" />
-            </button>
+            <div className="flex items-center gap-2">
+              {pendingImports.filter((i) => i.status === 'Pending Review').length > 0 && (
+                <button
+                  onClick={() => handleBatchReview('APPROVE')}
+                  className="px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-semibold flex items-center gap-1.5 transition-colors cursor-pointer shadow-sm shadow-emerald-500/20"
+                >
+                  <Check className="w-3.5 h-3.5" />
+                  <span>Approve All ({pendingImports.filter((i) => i.status === 'Pending Review').length})</span>
+                </button>
+              )}
+              <button
+                onClick={loadData}
+                className="p-1.5 rounded-lg text-slate-400 hover:text-slate-200 hover:bg-slate-800"
+                title="Refresh"
+              >
+                <RefreshCw className="w-4 h-4" />
+              </button>
+            </div>
           </div>
 
           {pendingImports.length === 0 ? (

@@ -6,7 +6,7 @@ const CourseExtractor = {
     const pageTitleElem = document.querySelector('.page-header-headings h1, h1.coursename, .course-title, header h1');
     const fullTitle = pageTitleElem ? Normalizer.cleanText(pageTitleElem.textContent) : 'SODeL Course';
 
-    const courseCode = Normalizer.extractCourseCode(fullTitle) || 'SODEL UNIT';
+    const courseCode = Normalizer.extractCourseCode(fullTitle) || Normalizer.generateCourseCode(fullTitle) || 'SODEL UNIT';
 
     // Collect topic/section headings
     const sections = [];

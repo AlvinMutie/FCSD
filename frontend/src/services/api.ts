@@ -340,6 +340,21 @@ export const api = {
     return data;
   },
 
+  async reviewBatchPendingImports(decision: 'APPROVE' | 'REJECT', itemType?: string): Promise<any> {
+    const res = await fetch(`${BASE_URL}/integrations/sodel/review-batch`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      credentials: 'include',
+      body: JSON.stringify({
+        decision,
+        item_type: itemType,
+      }),
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Failed to execute batch import review');
+    return data;
+  },
+
   async getImportHistory(): Promise<{ history: any[] }> {
     const res = await fetch(`${BASE_URL}/integrations/sodel/history`, { credentials: 'include' });
     const data = await res.json();

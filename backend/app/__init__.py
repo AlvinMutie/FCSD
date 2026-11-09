@@ -23,6 +23,7 @@ from .models import (
     Project,
     ProjectMilestone,
     MilestoneTask,
+    Integration,
 )
 from .auth.routes import auth_bp
 from .settings.routes import settings_bp
@@ -75,6 +76,18 @@ def create_app(config_class=Config):
             db.session.add(settings)
             db.session.commit()
 
+        if student and not app.config.get('TESTING'):
+            intg = Integration.query.filter_by(user_id=student.id, provider='sodel').first()
+            if not intg:
+                intg = Integration(
+                    user_id=student.id,
+                    provider='sodel',
+                    pairing_token='mlb_sodel_alvin2026',
+                    is_active=True
+                )
+                db.session.add(intg)
+                db.session.commit()
+
         # Seed example academic term and courses for student if none exist
         if student and not AcademicTerm.query.filter_by(user_id=student.id).first():
             today = date.today()
@@ -88,112 +101,115 @@ def create_app(config_class=Config):
             db.session.add(term)
             db.session.flush()
 
-            # Course 1: Web Development 1 (ICS 2303)
-            c1 = Course(
-                term_id=term.id,
-                code="ICS 2303",
-                title="Web Development 1",
-                lecturer_name="Dr. Kariuki",
-                difficulty_level=3,
-                academic_importance=5,
-                min_weekly_hours=4.0,
-                target_weekly_hours=6.0,
-                actual_weekly_hours=3.5,
-                target_grade="Distinction"
-            )
-            db.session.add(c1)
-            db.session.flush()
+            # Seed demo academic courses ONLY when executing pytest test suites
+            if app.config.get('TESTING'):
+                # Course 1: Web Development 1 (ICS 2303)
+                c1 = Course(
+                    term_id=term.id,
+                    code="ICS 2303",
+                    title="Web Development 1",
+                    lecturer_name="Dr. Kariuki",
+                    difficulty_level=3,
+                    academic_importance=5,
+                    min_weekly_hours=4.0,
+                    target_weekly_hours=6.0,
+                    actual_weekly_hours=3.5,
+                    target_grade="Distinction"
+                )
+                db.session.add(c1)
+                db.session.flush()
 
-            # Topics for Web Dev
-            t1_1 = CourseTopic(course_id=c1.id, title="Semantic HTML5 & Accessibility", order_index=1, status="Mastered", confidence_score=5)
-            t1_2 = CourseTopic(course_id=c1.id, title="CSS Flexbox & Grid Layouts", order_index=2, status="Understood", confidence_score=4)
-            t1_3 = CourseTopic(course_id=c1.id, title="Client-Side JavaScript & DOM Manipulation", order_index=3, status="Practicing", confidence_score=3)
-            t1_4 = CourseTopic(course_id=c1.id, title="Asynchronous JavaScript & REST APIs", order_index=4, status="Learning", confidence_score=2)
-            db.session.add_all([t1_1, t1_2, t1_3, t1_4])
+                # Topics for Web Dev
+                t1_1 = CourseTopic(course_id=c1.id, title="Semantic HTML5 & Accessibility", order_index=1, status="Mastered", confidence_score=5)
+                t1_2 = CourseTopic(course_id=c1.id, title="CSS Flexbox & Grid Layouts", order_index=2, status="Understood", confidence_score=4)
+                t1_3 = CourseTopic(course_id=c1.id, title="Client-Side JavaScript & DOM Manipulation", order_index=3, status="Practicing", confidence_score=3)
+                t1_4 = CourseTopic(course_id=c1.id, title="Asynchronous JavaScript & REST APIs", order_index=4, status="Learning", confidence_score=2)
+                db.session.add_all([t1_1, t1_2, t1_3, t1_4])
 
-            # Course 2: Software Engineering 1
-            c2 = Course(
-                term_id=term.id,
-                code="ICS 2201",
-                title="Software Engineering 1",
-                lecturer_name="Prof. Omondi",
-                difficulty_level=4,
-                academic_importance=5,
-                min_weekly_hours=4.0,
-                target_weekly_hours=6.0,
-                actual_weekly_hours=1.5,  # Neglected unit demo
-                target_grade="Distinction"
-            )
-            db.session.add(c2)
-            db.session.flush()
+                # Course 2: Software Engineering 1
+                c2 = Course(
+                    term_id=term.id,
+                    code="ICS 2201",
+                    title="Software Engineering 1",
+                    lecturer_name="Prof. Omondi",
+                    difficulty_level=4,
+                    academic_importance=5,
+                    min_weekly_hours=4.0,
+                    target_weekly_hours=6.0,
+                    actual_weekly_hours=1.5,  # Neglected unit demo
+                    target_grade="Distinction"
+                )
+                db.session.add(c2)
+                db.session.flush()
 
-            t2_1 = CourseTopic(course_id=c2.id, title="SDLC Models & Agile Frameworks", order_index=1, status="Understood", confidence_score=4)
-            t2_2 = CourseTopic(course_id=c2.id, title="Requirements Engineering & Use Cases", order_index=2, status="Practicing", confidence_score=3)
-            t2_3 = CourseTopic(course_id=c2.id, title="UML Class & Sequence Diagrams", order_index=3, status="Needs Revision", confidence_score=2)
-            db.session.add_all([t2_1, t2_2, t2_3])
+                t2_1 = CourseTopic(course_id=c2.id, title="SDLC Models & Agile Frameworks", order_index=1, status="Understood", confidence_score=4)
+                t2_2 = CourseTopic(course_id=c2.id, title="Requirements Engineering & Use Cases", order_index=2, status="Practicing", confidence_score=3)
+                t2_3 = CourseTopic(course_id=c2.id, title="UML Class & Sequence Diagrams", order_index=3, status="Needs Revision", confidence_score=2)
+                db.session.add_all([t2_1, t2_2, t2_3])
 
-            # Course 3: Database Systems
-            c3 = Course(
-                term_id=term.id,
-                code="ICS 2203",
-                title="Database Systems",
-                lecturer_name="Eng. Mutua",
-                difficulty_level=3,
-                academic_importance=4,
-                min_weekly_hours=3.5,
-                target_weekly_hours=5.0,
-                actual_weekly_hours=4.0,
-                target_grade="Distinction"
-            )
-            db.session.add(c3)
-            db.session.flush()
+                # Course 3: Database Systems
+                c3 = Course(
+                    term_id=term.id,
+                    code="ICS 2203",
+                    title="Database Systems",
+                    lecturer_name="Eng. Mutua",
+                    difficulty_level=3,
+                    academic_importance=4,
+                    min_weekly_hours=3.5,
+                    target_weekly_hours=5.0,
+                    actual_weekly_hours=4.0,
+                    target_grade="Distinction"
+                )
+                db.session.add(c3)
+                db.session.flush()
 
-            t3_1 = CourseTopic(course_id=c3.id, title="Relational Algebra & Normalization (1NF-3NF)", order_index=1, status="Understood", confidence_score=4)
-            t3_2 = CourseTopic(course_id=c3.id, title="Advanced SQL & Indexing Strategies", order_index=2, status="Practicing", confidence_score=3)
-            db.session.add_all([t3_1, t3_2])
+                t3_1 = CourseTopic(course_id=c3.id, title="Relational Algebra & Normalization (1NF-3NF)", order_index=1, status="Understood", confidence_score=4)
+                t3_2 = CourseTopic(course_id=c3.id, title="Advanced SQL & Indexing Strategies", order_index=2, status="Practicing", confidence_score=3)
+                db.session.add_all([t3_1, t3_2])
 
-            # Example Assignment with granular subtasks (as specified in build prompt)
-            assign1 = Assignment(
-                course_id=c1.id,
-                title="Build a Responsive Academic Portfolio Website",
-                description="Create a semantic, responsive personal portfolio showcasing projects and university coursework.",
-                assignment_type="Project",
-                assigned_date=today - timedelta(days=7),
-                deadline=datetime.combine(today + timedelta(days=5), datetime.min.time()),
-                has_explicit_time=False,
-                estimated_effort_hours=6.0,
-                actual_effort_hours=2.5,
-                priority=4,
-                status="In Progress",
-                max_marks=20.0
-            )
-            db.session.add(assign1)
-            db.session.flush()
+                # Example Assignment with granular subtasks (as specified in build prompt)
+                assign1 = Assignment(
+                    course_id=c1.id,
+                    title="Build a Responsive Academic Portfolio Website",
+                    description="Create a semantic, responsive personal portfolio showcasing projects and university coursework.",
+                    assignment_type="Project",
+                    assigned_date=today - timedelta(days=7),
+                    deadline=datetime.combine(today + timedelta(days=5), datetime.min.time()),
+                    has_explicit_time=False,
+                    estimated_effort_hours=6.0,
+                    actual_effort_hours=2.5,
+                    priority=4,
+                    status="In Progress",
+                    max_marks=20.0
+                )
+                db.session.add(assign1)
+                db.session.flush()
 
-            # Granular subtasks
-            subtasks = [
-                AssignmentSubtask(assignment_id=assign1.id, title="Understand requirements & design spec", estimated_mins=45, order_index=1, is_completed=True),
-                AssignmentSubtask(assignment_id=assign1.id, title="Research color schemes & wireframe layout", estimated_mins=60, order_index=2, is_completed=True),
-                AssignmentSubtask(assignment_id=assign1.id, title="Develop semantic HTML structure", estimated_mins=90, order_index=3, is_completed=False),
-                AssignmentSubtask(assignment_id=assign1.id, title="Implement responsive CSS Flexbox/Grid", estimated_mins=120, order_index=4, is_completed=False),
-                AssignmentSubtask(assignment_id=assign1.id, title="Test mobile responsiveness & cross-browser check", estimated_mins=60, order_index=5, is_completed=False),
-                AssignmentSubtask(assignment_id=assign1.id, title="Review against rubric and submit", estimated_mins=30, order_index=6, is_completed=False)
-            ]
-            db.session.add_all(subtasks)
+                # Granular subtasks
+                subtasks = [
+                    AssignmentSubtask(assignment_id=assign1.id, title="Understand requirements & design spec", estimated_mins=45, order_index=1, is_completed=True),
+                    AssignmentSubtask(assignment_id=assign1.id, title="Research color schemes & wireframe layout", estimated_mins=60, order_index=2, is_completed=True),
+                    AssignmentSubtask(assignment_id=assign1.id, title="Develop semantic HTML structure", estimated_mins=90, order_index=3, is_completed=False),
+                    AssignmentSubtask(assignment_id=assign1.id, title="Implement responsive CSS Flexbox/Grid", estimated_mins=120, order_index=4, is_completed=False),
+                    AssignmentSubtask(assignment_id=assign1.id, title="Test mobile responsiveness & cross-browser check", estimated_mins=60, order_index=5, is_completed=False),
+                    AssignmentSubtask(assignment_id=assign1.id, title="Review against rubric and submit", estimated_mins=30, order_index=6, is_completed=False)
+                ]
+                db.session.add_all(subtasks)
 
-            # Example Upcoming CAT
-            cat1 = Assessment(
-                course_id=c2.id,
-                title="CAT 1: Requirements & UML Modeling",
-                assessment_type="CAT",
-                assessment_date=datetime.combine(today + timedelta(days=8), datetime.min.time()),
-                has_explicit_time=False,
-                weight_percentage=15.0,
-                max_marks=30.0,
-                preparation_progress=40,
-                notes="Focus heavily on sequence diagram syntax and use case relationships."
-            )
-            db.session.add(cat1)
+                # Example Upcoming CAT
+                cat1 = Assessment(
+                    course_id=c2.id,
+                    title="CAT 1: Requirements & UML Modeling",
+                    assessment_type="CAT",
+                    assessment_date=datetime.combine(today + timedelta(days=8), datetime.min.time()),
+                    has_explicit_time=False,
+                    weight_percentage=15.0,
+                    max_marks=30.0,
+                    preparation_progress=40,
+                    notes="Focus heavily on sequence diagram syntax and use case relationships."
+                )
+                db.session.add(cat1)
+
             db.session.commit()
 
         # Seed the 4 primary technical tracks for student if none exist

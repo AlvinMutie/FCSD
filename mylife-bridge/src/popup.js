@@ -75,11 +75,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
         if (!response || !response.success) {
           feedback.style.color = '#f87171';
-          if (response && response.pageType === 'course_overview') {
-            feedback.textContent = 'You are on the dashboard. Click into a specific Course or Assignment page first.';
-          } else {
-            feedback.textContent = 'Open a specific Course (course/view.php) or Assignment (mod/assign/...) to scan.';
-          }
+          feedback.textContent = 'Could not find any courses or elements to scan. Make sure your course cards are visible on screen, or refresh the page.';
           return;
         }
 
@@ -88,16 +84,31 @@ document.addEventListener('DOMContentLoaded', async () => {
         previewCard.style.display = 'block';
         previewTitle.textContent = currentExtractedData.title;
 
-        let detailsHtml = `<strong>Type:</strong> ${currentExtractedData.item_type.toUpperCase()}<br>`;
-        if (currentExtractedData.course_code) {
-          detailsHtml += `<strong>Course:</strong> ${currentExtractedData.course_code}<br>`;
-        }
-        if (currentExtractedData.deadline) {
-          detailsHtml += `<strong>Deadline:</strong> ${new Date(currentExtractedData.deadline).toLocaleString()}<br>`;
-          detailsHtml += `<strong>Explicit Time:</strong> ${currentExtractedData.has_explicit_time ? 'Yes' : 'No (Date only)'}<br>`;
-        }
-        if (currentExtractedData.sections) {
-          detailsHtml += `<strong>Sections Found:</strong> ${currentExtractedData.sections.length}<br>`;
+        let detailsHtml = '';
+        if (currentExtractedData.item_type === 'course_overview') {
+          const list = currentExtractedData.courses || [];
+          detailsHtml = `<div style="margin-bottom: 6px;"><strong>Found ${list.length} Enrolled Units:</strong></div>`;
+          detailsHtml += `<div style="max-height: 140px; overflow-y: auto; padding-right: 4px; border: 1px solid #334155; border-radius: 6px; padding: 6px; background: #0b1120;">`;
+          list.forEach((c, idx) => {
+            detailsHtml += `<div style="font-size: 11px; margin-bottom: 4px; padding-bottom: 4px; border-bottom: 1px solid #1e293b;">
+              <span style="color: #38bdf8; font-weight: 600;">${c.course_code}</span>: ${c.title}
+            </div>`;
+          });
+          detailsHtml += `</div>`;
+          sendBtn.textContent = `Stage ${list.length} Units in MyLife OS`;
+        } else {
+          detailsHtml = `<strong>Type:</strong> ${currentExtractedData.item_type.toUpperCase()}<br>`;
+          if (currentExtractedData.course_code) {
+            detailsHtml += `<strong>Course:</strong> ${currentExtractedData.course_code}<br>`;
+          }
+          if (currentExtractedData.deadline) {
+            detailsHtml += `<strong>Deadline:</strong> ${new Date(currentExtractedData.deadline).toLocaleString()}<br>`;
+            detailsHtml += `<strong>Explicit Time:</strong> ${currentExtractedData.has_explicit_time ? 'Yes' : 'No (Date only)'}<br>`;
+          }
+          if (currentExtractedData.sections) {
+            detailsHtml += `<strong>Sections Found:</strong> ${currentExtractedData.sections.length}<br>`;
+          }
+          sendBtn.textContent = 'Send to MyLife OS Staging';
         }
         previewDetails.innerHTML = detailsHtml;
       });

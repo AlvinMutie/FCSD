@@ -7,6 +7,7 @@ from ..models import (
     User,
     AcademicTerm,
     Course,
+    CourseTopic,
     Assignment,
     Assessment,
     Integration,
@@ -133,6 +134,63 @@ def receive_scan():
     deadline_str = data.get('deadline')
     has_explicit_time = bool(data.get('has_explicit_time', False))
     raw_payload = data.get('raw_payload', {})
+
+    # Handle batch course overview scanning from dashboard
+    if item_type == 'course_overview' or 'courses' in data:
+        courses = data.get('courses', [])
+        staged = []
+        for c in courses:
+            c_title = (c.get('title') or '').strip()
+            c_code = (c.get('course_code') or '').strip().upper()
+            c_url = c.get('source_url', source_url)
+            if not c_title:
+                continue
+
+            # Duplicate detection
+            existing_course = Course.query.join(AcademicTerm).filter(
+                AcademicTerm.user_id == user.id,
+                Course.title.ilike(c_title)
+            ).first()
+            if not existing_course and c_code:
+                existing_course = Course.query.join(AcademicTerm).filter(
+                    AcademicTerm.user_id == user.id,
+                    Course.code == c_code
+                ).first()
+
+            existing_pending = PendingImport.query.filter_by(
+                user_id=user.id,
+                normalized_title=c_title,
+                status='Pending Review'
+            ).first()
+
+            if existing_pending:
+                # Update course code or URL if missing
+                if not existing_pending.normalized_course_code and c_code:
+                    existing_pending.normalized_course_code = c_code
+                continue
+
+            pending_rec = PendingImport(
+                user_id=user.id,
+                source_system='sodel',
+                source_url=c_url,
+                item_type='course',
+                raw_data_json=json.dumps(c),
+                normalized_title=c_title,
+                normalized_course_code=c_code or None,
+                status='Pending Review',
+                potential_duplicate_id=existing_course.id if existing_course else None
+            )
+            db.session.add(pending_rec)
+            staged.append(pending_rec)
+
+        integration.last_sync_at = datetime.now(timezone.utc)
+        db.session.commit()
+
+        return jsonify({
+            'message': f'Successfully staged {len(staged)} course(s) into Pending Imports',
+            'count': len(staged),
+            'pending_imports': [p.to_dict() for p in staged]
+        }), 201
 
     if not source_url or not title:
         return jsonify({'error': 'Source URL and Title are required'}), 400
@@ -358,6 +416,141 @@ def review_import():
         }), 200
 
     return jsonify({'error': 'Invalid decision'}), 400
+
+@integrations_bp.route('/review-batch', methods=['POST'])
+def review_batch():
+    user = get_session_user()
+    if not user:
+        return jsonify({'error': 'Unauthorized'}), 401
+
+    data = request.get_json() or {}
+    decision = data.get('decision', 'APPROVE').upper()  # APPROVE, REJECT
+    item_type_filter = data.get('item_type')
+
+    query = PendingImport.query.filter_by(user_id=user.id, status='Pending Review')
+    if item_type_filter:
+        query = query.filter_by(item_type=item_type_filter)
+
+    items = query.all()
+    if not items:
+        return jsonify({'message': 'No matching pending items to review', 'count': 0}), 200
+
+    current_term = AcademicTerm.query.filter_by(user_id=user.id, is_current=True).first()
+    if not current_term:
+        current_term = AcademicTerm.query.filter_by(user_id=user.id).first()
+    if not current_term:
+        current_term = AcademicTerm(
+            user_id=user.id,
+            name="Current Semester",
+            start_date=date.today(),
+            end_date=date.today() + timedelta(days=120),
+            is_current=True
+        )
+        db.session.add(current_term)
+        db.session.flush()
+
+    processed_count = 0
+    now = datetime.now(timezone.utc)
+
+    for pending in items:
+        if decision == 'REJECT':
+            pending.status = 'Rejected'
+            pending.reviewed_at = now
+            processed_count += 1
+            continue
+
+        if decision == 'APPROVE':
+            target_table = ''
+            target_id = 0
+            action = 'CREATED'
+
+            if pending.item_type == 'course':
+                target_table = 'courses'
+                code = pending.normalized_course_code or 'SODEL UNIT'
+                course = Course.query.filter_by(term_id=current_term.id, title=pending.normalized_title).first()
+                if not course:
+                    course = Course.query.filter_by(term_id=current_term.id, code=code).first()
+
+                if course:
+                    course.title = pending.normalized_title
+                    action = 'UPDATED'
+                else:
+                    course = Course(
+                        term_id=current_term.id,
+                        code=code,
+                        title=pending.normalized_title,
+                        difficulty_level=3,
+                        academic_importance=4,
+                        min_weekly_hours=4.0,
+                        target_weekly_hours=6.0
+                    )
+                    db.session.add(course)
+                    db.session.flush()
+                target_id = course.id
+
+                # Create topics if sections were captured
+                try:
+                    raw = json.loads(pending.raw_data_json or '{}')
+                    sections = raw.get('sections', [])
+                    for idx, sec_title in enumerate(sections, start=1):
+                        sec_name = sec_title.strip()
+                        if sec_name and not CourseTopic.query.filter_by(course_id=course.id, title=sec_name).first():
+                            db.session.add(CourseTopic(
+                                course_id=course.id,
+                                title=sec_name,
+                                order_index=idx,
+                                status='Needs Revision',
+                                confidence_score=1
+                            ))
+                except Exception:
+                    pass
+
+            elif pending.item_type == 'assignment':
+                target_table = 'assignments'
+                course = Course.query.filter_by(term_id=current_term.id).first()
+                if not course:
+                    course = Course(
+                        term_id=current_term.id,
+                        code=pending.normalized_course_code or "ICS 2000",
+                        title="SODeL Course",
+                        min_weekly_hours=4.0,
+                        target_weekly_hours=6.0
+                    )
+                    db.session.add(course)
+                    db.session.flush()
+
+                assignment = Assignment(
+                    course_id=course.id,
+                    title=pending.normalized_title,
+                    assignment_type='Assignment',
+                    deadline=pending.normalized_deadline,
+                    has_explicit_time=pending.has_explicit_time,
+                    source_system='sodel',
+                    source_url=pending.source_url,
+                    status='Not Started'
+                )
+                db.session.add(assignment)
+                db.session.flush()
+                target_id = assignment.id
+
+            pending.status = 'Approved'
+            pending.reviewed_at = now
+
+            provenance = ImportProvenance(
+                pending_import_id=pending.id,
+                target_table=target_table,
+                target_record_id=target_id,
+                action_taken=action,
+                approved_by_user_id=user.id
+            )
+            db.session.add(provenance)
+            processed_count += 1
+
+    db.session.commit()
+    return jsonify({
+        'message': f'Successfully batch {decision.lower()}d {processed_count} item(s)',
+        'processed_count': processed_count
+    }), 200
 
 @integrations_bp.route('/history', methods=['GET'])
 def get_history():

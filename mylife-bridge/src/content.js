@@ -13,7 +13,9 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
     const pageType = PageDetector.detect(window.location.href, document);
     let extractedData = null;
 
-    if (pageType === 'course') {
+    if (pageType === 'course_overview') {
+      extractedData = CourseOverviewExtractor.extract(document);
+    } else if (pageType === 'course') {
       extractedData = CourseExtractor.extract(document);
     } else if (pageType === 'assignment') {
       extractedData = AssignmentExtractor.extract(document);
