@@ -553,7 +553,7 @@ export const TimetablePage: React.FC = () => {
             <span className="text-brand-300 font-semibold">{fmtDate(studyStartStr)}</span>
             {' '}→{' '}
             <span className="text-slate-300 font-medium">{fmtDate(termEndStr)}</span>
-            {' '}·{' '}{calculatedWeeks} weeks · 8 SODeL units · 4 skill tracks
+            {' '}·{' '}{calculatedWeeks} weeks · 8 SODeL units · Skills Development
           </p>
         </div>
 
@@ -827,7 +827,7 @@ export const TimetablePage: React.FC = () => {
             Click <strong className="text-brand-400">Generate Timetable ({calculatedWeeks} weeks)</strong> above to create your complete study schedule!
           </p>
           <div className="flex flex-wrap justify-center gap-2 text-xs text-slate-500">
-            {['8 SODeL Units','4 Skill Tracks','Career Sessions','Spaced Repetition','No Same-Day Repeats','Nov → Dec 2026'].map(t=>(
+            {['8 SODeL Units','Skills Development','Career Sessions','Spaced Repetition','No Same-Day Repeats','Nov → Dec 2026'].map(t=>(
               <span key={t} className="px-3 py-1 rounded-full bg-slate-800 border border-slate-700">{t}</span>
             ))}
           </div>

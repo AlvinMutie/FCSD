@@ -6,15 +6,16 @@ from backend.app import create_app
 from backend.app.models import db as _db
 
 
+class TestConfig:
+    TESTING = True
+    SQLALCHEMY_DATABASE_URI = 'sqlite:///:memory:'
+    SQLALCHEMY_TRACK_MODIFICATIONS = False
+    WTF_CSRF_ENABLED = False
+    SECRET_KEY = 'test-secret-key'
+
 @pytest.fixture(scope='module')
 def app():
-    application = create_app()
-    application.config.update({
-        'TESTING': True,
-        'SQLALCHEMY_DATABASE_URI': 'sqlite:///:memory:',
-        'WTF_CSRF_ENABLED': False,
-        'SECRET_KEY': 'test-secret-key',
-    })
+    application = create_app(TestConfig)
     with application.app_context():
         _db.create_all()
         yield application

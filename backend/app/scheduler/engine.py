@@ -307,20 +307,38 @@ class SchedulingEngine:
 
         # 4. User-Defined Custom Skills (1 hour each, distributed across other days)
         user_skills = Skill.query.filter_by(user_id=self.user.id).all()
-        for sk in user_skills:
-            # Determine number of 1-hour sessions per week based on user target
-            sessions_count = max(1, min(4, int(round(sk.weekly_target_hours or 2.0))))
+        if user_skills:
+            for sk in user_skills:
+                # Determine number of 1-hour sessions per week based on user target
+                sessions_count = max(1, min(4, int(round(sk.weekly_target_hours or 2.0))))
+                p = self.compute_task_priority(deadline=None, importance=3, difficulty=3)
+                for s_idx in range(sessions_count):
+                    tasks.append(SchedulableTask(
+                        id=f"skill_{sk.id}_{s_idx}",
+                        title=f"Skill Practice: {sk.track_name}",
+                        category='skill',
+                        duration_mins=60,  # Exactly 1 hour each!
+                        priority_score=p,
+                        explanation=f"1-hour practical skill session ({sk.track_name}) interleaved into study days",
+                        related_entity_type='skill',
+                        related_entity_id=sk.id,
+                        round_index=s_idx
+                    ))
+        else:
+            # When user hasn't chosen any specific skills yet:
+            # In the timetable it specifies "Skills Development" (1-hour interleaved sessions)
+            generic_sessions_count = 3
             p = self.compute_task_priority(deadline=None, importance=3, difficulty=3)
-            for s_idx in range(sessions_count):
+            for s_idx in range(generic_sessions_count):
                 tasks.append(SchedulableTask(
-                    id=f"skill_{sk.id}_{s_idx}",
-                    title=f"Skill Practice: {sk.track_name}",
+                    id=f"skill_generic_{s_idx}",
+                    title="Skills Development",
                     category='skill',
                     duration_mins=60,  # Exactly 1 hour each!
                     priority_score=p,
-                    explanation=f"1-hour practical skill session ({sk.track_name}) interleaved into study days",
+                    explanation="1-hour self-directed skills development session interleaved into study days",
                     related_entity_type='skill',
-                    related_entity_id=sk.id,
+                    related_entity_id=None,
                     round_index=s_idx
                 ))
 
