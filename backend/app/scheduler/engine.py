@@ -292,6 +292,19 @@ class SchedulingEngine:
             )
 
             if qualifies_for_boost:
+                # Additional deep study / worked problem session for challenging units
+                tasks.append(SchedulableTask(
+                    id=f"crs_{c.id}_study2",
+                    title=f"Study: {display_name} (Problem Solving)",
+                    category='academic',
+                    duration_mins=90,
+                    priority_score=p + 0.05,
+                    course_code=c.code,
+                    explanation=f"Deep problem solving & worked examples for {c.title}",
+                    related_entity_type='course',
+                    related_entity_id=c.id,
+                    round_index=1
+                ))
                 tasks.append(SchedulableTask(
                     id=f"crs_{c.id}_2",
                     title=f"Deep Exam Prep: {display_name}",
@@ -359,6 +372,206 @@ class SchedulingEngine:
 
         return tasks
 
+    @staticmethod
+    def classify_course_domain(code: Optional[str], title: Optional[str]) -> str:
+        """
+        Classifies course into 'logic_heavy' vs 'descriptive_systems' for cognitive load pairing.
+        """
+        text = f"{code or ''} {title or ''}".upper()
+        if any(k in text for k in ['CALC', 'MATH', 'DB', 'DATABASE', 'OOP', 'PROGRAMMING', 'MWC', 'WIRELESS', 'ALGORITHM']):
+            return 'logic_heavy'
+        return 'descriptive_systems'
+
+    def _pack_week_slots(
+        self,
+        free_slots: List[Tuple[datetime, datetime]],
+        week_tasks: List[SchedulableTask],
+        version_id: int,
+        week_label: str = "",
+        last_course_date: Optional[Dict[int, date]] = None,
+        course_study_date: Optional[Dict[int, date]] = None,
+    ) -> Tuple[List[CalendarEvent], List[SchedulableTask]]:
+        if last_course_date is None:
+            last_course_date = {}
+        if course_study_date is None:
+            course_study_date = {}
+
+        scheduled_events: List[CalendarEvent] = []
+        unplaced_tasks = list(week_tasks)
+
+        # Track daily allocations to guarantee the balanced 3-unit triad:
+        # Max 3 units touched per day
+        # Max 2 Study sessions per day
+        # Max 1 Revision session per day
+        # Max 1 Skill session per day
+        day_course_ids: Dict[date, set] = {}
+        day_study_count: Dict[date, int] = {}
+        day_revision_count: Dict[date, int] = {}
+        day_skill_count: Dict[date, int] = {}
+        day_domain_types: Dict[date, set] = {}
+
+        for slot_start, slot_end in free_slots:
+            curr_pointer = slot_start
+            while curr_pointer < slot_end and unplaced_tasks:
+                curr_date = curr_pointer.date()
+                if curr_date not in day_course_ids:
+                    day_course_ids[curr_date] = set()
+                    day_study_count[curr_date] = 0
+                    day_revision_count[curr_date] = 0
+                    day_skill_count[curr_date] = 0
+                    day_domain_types[curr_date] = set()
+
+                remaining_mins = int((slot_end - curr_pointer).total_seconds() / 60)
+                if remaining_mins < 45:
+                    break
+
+                best_idx = None
+                best_score = -9999.0
+
+                for idx, t in enumerate(unplaced_tasks):
+                    if t.duration_mins > remaining_mins:
+                        continue
+
+                    is_study = t.title.startswith("Study:")
+                    is_revision = t.title.startswith("Revision:")
+                    is_skill = (t.category == 'skill' or t.title.startswith("Skill") or "Skills Development" in t.title)
+                    is_career = (t.category == 'career' or "Career" in t.title)
+
+                    # 1. No course repeated twice on the same day
+                    if t.related_entity_type == 'course' and t.related_entity_id:
+                        if t.related_entity_id in day_course_ids[curr_date]:
+                            continue
+                        # 2. Strict limit: exactly 3 academic units touched per day
+                        if len(day_course_ids[curr_date]) >= 3:
+                            continue
+
+                    # 3. Target: max 2 Study sessions per day
+                    if is_study and day_study_count[curr_date] >= 2:
+                        continue
+
+                    # 4. Target: max 1 Revision session per day
+                    if is_revision and day_revision_count[curr_date] >= 1:
+                        continue
+
+                    # 5. Target: max 1 Skill session per day
+                    if is_skill and day_skill_count[curr_date] >= 1:
+                        continue
+
+                    # Base score from priority
+                    score = t.priority_score * 10.0
+
+                    # Time of day suitability:
+                    # Morning slots (before 13:00): favor Core Study
+                    # Afternoon slots (14:00+): favor Revision (active recall) and Skills (hands-on)
+                    if curr_pointer.hour < 13:
+                        if is_study:
+                            score += 45.0
+                        elif is_revision:
+                            score += 10.0
+                    else:
+                        if is_revision:
+                            score += 45.0
+                        elif is_skill:
+                            score += 40.0
+                        elif is_career:
+                            score += 30.0
+                        elif is_study:
+                            score += 10.0
+
+                    # 48-Hour Spaced Repetition Boost for Revision:
+                    if is_revision and t.related_entity_id:
+                        c_id = t.related_entity_id
+                        if c_id in course_study_date:
+                            study_d = course_study_date[c_id]
+                            gap = (curr_date - study_d).days
+                            if gap == 2:
+                                score += 85.0  # Perfect 48-hour recall match!
+                            elif gap == 3:
+                                score += 55.0
+                            elif gap == 4:
+                                score += 35.0
+                            elif gap < 2:
+                                score -= 60.0  # Too soon to revise on same/next day
+                        else:
+                            score += 20.0  # Previous week or initial rotation
+
+                    # Subject Pairing Boost for Study sessions (Logic + Descriptive):
+                    if is_study and t.related_entity_id:
+                        c_domain = self.classify_course_domain(t.course_code, t.title)
+                        if day_study_count[curr_date] == 1:
+                            if c_domain not in day_domain_types[curr_date]:
+                                score += 35.0  # Cognitive balance: pair logic with descriptive
+                            else:
+                                score -= 15.0
+
+                    # Spacing between study sessions across days
+                    if t.related_entity_type == 'course' and t.related_entity_id in last_course_date:
+                        gap_days = (curr_date - last_course_date[t.related_entity_id]).days
+                        if gap_days >= 2:
+                            score += 10.0
+                        elif gap_days == 1:
+                            score -= 10.0
+
+                    if score > best_score:
+                        best_score = score
+                        best_idx = idx
+
+                # Fallback: if strict quotas weren't met but we still have >= 60 mins open in slot
+                if best_idx is None and remaining_mins >= 60:
+                    for idx, t in enumerate(unplaced_tasks):
+                        if t.duration_mins <= remaining_mins:
+                            if t.related_entity_type == 'course' and t.related_entity_id:
+                                if t.related_entity_id in day_course_ids[curr_date]:
+                                    continue
+                                if len(day_course_ids[curr_date]) >= 3:
+                                    continue
+                            score = t.priority_score
+                            if score > best_score:
+                                best_score = score
+                                best_idx = idx
+
+                if best_idx is not None:
+                    chosen_task = unplaced_tasks.pop(best_idx)
+                    task_end = curr_pointer + timedelta(minutes=chosen_task.duration_mins)
+
+                    prefix = f"{week_label} " if week_label else ""
+                    event = CalendarEvent(
+                        user_id=self.user.id,
+                        schedule_version_id=version_id,
+                        title=chosen_task.title,
+                        category=chosen_task.category,
+                        start_time=curr_pointer,
+                        end_time=task_end,
+                        is_locked=False,
+                        related_entity_type=chosen_task.related_entity_type,
+                        related_entity_id=chosen_task.related_entity_id,
+                        explanation=f"{prefix}{chosen_task.explanation}".strip()
+                    )
+                    scheduled_events.append(event)
+
+                    # Update daily trackers
+                    if chosen_task.related_entity_type == 'course' and chosen_task.related_entity_id:
+                        c_id = chosen_task.related_entity_id
+                        day_course_ids[curr_date].add(c_id)
+                        last_course_date[c_id] = curr_date
+
+                        if chosen_task.title.startswith("Study:"):
+                            day_study_count[curr_date] += 1
+                            course_study_date[c_id] = curr_date
+                            c_dom = self.classify_course_domain(chosen_task.course_code, chosen_task.title)
+                            day_domain_types[curr_date].add(c_dom)
+                        elif chosen_task.title.startswith("Revision:"):
+                            day_revision_count[curr_date] += 1
+
+                    if chosen_task.category == 'skill' or chosen_task.title.startswith("Skill") or "Skills Development" in chosen_task.title:
+                        day_skill_count[curr_date] += 1
+
+                    curr_pointer = task_end + timedelta(minutes=15)
+                else:
+                    break
+
+        return scheduled_events, unplaced_tasks
+
     def generate_semester_schedule(
         self,
         start_date: date,
@@ -405,8 +618,9 @@ class SchedulingEngine:
             'weeks': weeks
         }
 
-        # Track cross-week spacing per course
+        # Track cross-week spacing and 48-hour revision recall per course
         last_course_date: Dict[int, date] = {}
+        course_study_date: Dict[int, date] = {}
 
         for week_idx in range(weeks):
             week_start = start_date + timedelta(weeks=week_idx)
@@ -462,84 +676,16 @@ class SchedulingEngine:
             if is_overloaded:
                 combined_overload['is_overloaded'] = True
 
-            # Pack tasks into the week's slots
-            unplaced_tasks = list(week_tasks)
-            day_course_ids: Dict[date, set] = {}
-            day_skill_names: Dict[date, set] = {}
-
-            for slot_start, slot_end in free_slots:
-                curr_pointer = slot_start
-                while curr_pointer < slot_end and unplaced_tasks:
-                    curr_date = curr_pointer.date()
-                    if curr_date not in day_course_ids:
-                        day_course_ids[curr_date] = set()
-                    if curr_date not in day_skill_names:
-                        day_skill_names[curr_date] = set()
-
-                    remaining_mins = int((slot_end - curr_pointer).total_seconds() / 60)
-                    if remaining_mins < 45:
-                        break
-
-                    best_idx = None
-                    best_score = -999.0
-
-                    for idx, t in enumerate(unplaced_tasks):
-                        if t.duration_mins > remaining_mins:
-                            continue
-                        if t.related_entity_type == 'course' and t.related_entity_id:
-                            if t.related_entity_id in day_course_ids[curr_date]:
-                                continue
-                        if t.related_entity_type == 'skill':
-                            if t.title in day_skill_names[curr_date]:
-                                continue
-
-                        spacing_bonus = 0.0
-                        if t.related_entity_type == 'course' and t.related_entity_id in last_course_date:
-                            gap_days = (curr_date - last_course_date[t.related_entity_id]).days
-                            if gap_days >= 2:
-                                spacing_bonus = 0.5
-                            elif gap_days == 1:
-                                spacing_bonus = -0.3
-
-                        score = (100.0 - t.round_index * 25.0) + t.priority_score * 5.0 + spacing_bonus
-                        if score > best_score:
-                            best_score = score
-                            best_idx = idx
-
-                    if best_idx is None and remaining_mins >= 60:
-                        for idx, t in enumerate(unplaced_tasks):
-                            if t.duration_mins <= remaining_mins:
-                                score = t.priority_score
-                                if score > best_score:
-                                    best_score = score
-                                    best_idx = idx
-
-                    if best_idx is not None:
-                        chosen_task = unplaced_tasks.pop(best_idx)
-                        task_end = curr_pointer + timedelta(minutes=chosen_task.duration_mins)
-                        event = CalendarEvent(
-                            user_id=self.user.id,
-                            schedule_version_id=version.id,
-                            title=chosen_task.title,
-                            category=chosen_task.category,
-                            start_time=curr_pointer,
-                            end_time=task_end,
-                            is_locked=False,
-                            related_entity_type=chosen_task.related_entity_type,
-                            related_entity_id=chosen_task.related_entity_id,
-                            explanation=f"[Week {week_idx + 1}/{weeks}] {chosen_task.explanation}"
-                        )
-                        all_scheduled_events.append(event)
-
-                        if chosen_task.related_entity_type == 'course' and chosen_task.related_entity_id:
-                            day_course_ids[curr_date].add(chosen_task.related_entity_id)
-                            last_course_date[chosen_task.related_entity_id] = curr_date
-                        elif chosen_task.related_entity_type == 'skill':
-                            day_skill_names[curr_date].add(chosen_task.title)
-
-                        curr_pointer = task_end + timedelta(minutes=15)
-                    else:
-                        break
+            # Pack tasks into the week's slots using the balanced triad engine
+            week_events, _ = self._pack_week_slots(
+                free_slots=free_slots,
+                week_tasks=week_tasks,
+                version_id=version.id,
+                week_label=f"[Week {week_idx + 1}/{weeks}]",
+                last_course_date=last_course_date,
+                course_study_date=course_study_date,
+            )
+            all_scheduled_events.extend(week_events)
 
         combined_overload['deficit_hours'] = round(
             max(0.0, combined_overload['total_needed_hours'] - combined_overload['total_available_hours']), 1
@@ -637,8 +783,7 @@ class SchedulingEngine:
         # 4. Sort tasks by priority descending
         all_tasks.sort(key=lambda x: x.priority_score, reverse=True)
 
-        # 5. Pack tasks into free slots with Round-Robin Interleaving & Daily Diversity
-        scheduled_events: List[CalendarEvent] = []
+        # 5. Pack tasks into free slots with Balanced Triad & 48h Spaced Repetition
         version_num = ScheduleVersion.query.filter_by(user_id=self.user.id).count() + 1
         version = ScheduleVersion(
             user_id=self.user.id,
@@ -651,96 +796,15 @@ class SchedulingEngine:
         db.session.add(version)
         db.session.flush()
 
-        unplaced_tasks = list(all_tasks)
-
-        # Track daily allocations to guarantee diversity (max 1 session per course/skill per day)
-        day_course_ids: Dict[date, set] = {}
-        day_skill_names: Dict[date, set] = {}
-        last_course_date: Dict[int, date] = {}
-
-        for slot_start, slot_end in free_slots:
-            curr_pointer = slot_start
-            while curr_pointer < slot_end and unplaced_tasks:
-                curr_date = curr_pointer.date()
-                if curr_date not in day_course_ids:
-                    day_course_ids[curr_date] = set()
-                if curr_date not in day_skill_names:
-                    day_skill_names[curr_date] = set()
-
-                remaining_mins = int((slot_end - curr_pointer).total_seconds() / 60)
-                if remaining_mins < 45:
-                    break
-
-                best_idx = None
-                best_score = -999.0
-
-                for idx, t in enumerate(unplaced_tasks):
-                    if t.duration_mins > remaining_mins:
-                        continue
-
-                    # Daily diversity check (max 1 study session per course per day)
-                    if t.related_entity_type == 'course' and t.related_entity_id:
-                        if t.related_entity_id in day_course_ids[curr_date]:
-                            continue
-
-                    # Max 1 session per skill track per day
-                    if t.related_entity_type == 'skill':
-                        if t.title in day_skill_names[curr_date]:
-                            continue
-
-                    # Spacing bonus: encourage at least 24-48 hours gap between same course sessions
-                    spacing_bonus = 0.0
-                    if t.related_entity_type == 'course' and t.related_entity_id in last_course_date:
-                        gap_days = (curr_date - last_course_date[t.related_entity_id]).days
-                        if gap_days >= 2:
-                            spacing_bonus = 0.5
-                        elif gap_days == 1:
-                            spacing_bonus = -0.3
-
-                    # Prioritize: Lower round_index first (Round 0 before Round 1 before Round 2)
-                    # Then priority_score + spacing bonus
-                    score = (100.0 - t.round_index * 25.0) + t.priority_score * 5.0 + spacing_bonus
-
-                    if score > best_score:
-                        best_score = score
-                        best_idx = idx
-
-                # Fallback: if no task met strict diversity, allow placing remaining tasks that fit
-                if best_idx is None and remaining_mins >= 60:
-                    for idx, t in enumerate(unplaced_tasks):
-                        if t.duration_mins <= remaining_mins:
-                            score = t.priority_score
-                            if score > best_score:
-                                best_score = score
-                                best_idx = idx
-
-                if best_idx is not None:
-                    chosen_task = unplaced_tasks.pop(best_idx)
-                    task_end = curr_pointer + timedelta(minutes=chosen_task.duration_mins)
-
-                    event = CalendarEvent(
-                        user_id=self.user.id,
-                        schedule_version_id=version.id,
-                        title=chosen_task.title,
-                        category=chosen_task.category,
-                        start_time=curr_pointer,
-                        end_time=task_end,
-                        is_locked=False,
-                        related_entity_type=chosen_task.related_entity_type,
-                        related_entity_id=chosen_task.related_entity_id,
-                        explanation=chosen_task.explanation
-                    )
-                    scheduled_events.append(event)
-
-                    if chosen_task.related_entity_type == 'course' and chosen_task.related_entity_id:
-                        day_course_ids[curr_date].add(chosen_task.related_entity_id)
-                        last_course_date[chosen_task.related_entity_id] = curr_date
-                    elif chosen_task.related_entity_type == 'skill':
-                        day_skill_names[curr_date].add(chosen_task.title)
-
-                    curr_pointer = task_end + timedelta(minutes=15)
-                else:
-                    break
+        # Pack tasks into free slots using the balanced triad engine
+        scheduled_events, _ = self._pack_week_slots(
+            free_slots=free_slots,
+            week_tasks=all_tasks,
+            version_id=version.id,
+            week_label="",
+            last_course_date={},
+            course_study_date={}
+        )
 
         db.session.add_all(scheduled_events)
         db.session.commit()
