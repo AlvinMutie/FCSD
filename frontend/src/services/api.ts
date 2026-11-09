@@ -405,15 +405,15 @@ export const api = {
     if (!res.ok) throw new Error('Failed to delete availability rule');
   },
 
-  async generateWeeklySchedule(startDate?: string, autoApprove = true): Promise<any> {
+  async generateWeeklySchedule(startDate?: string, autoApprove = true, weeks = 1): Promise<any> {
     const res = await fetch(`${BASE_URL}/scheduler/generate`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       credentials: 'include',
-      body: JSON.stringify({ start_date: startDate, auto_approve: autoApprove }),
+      body: JSON.stringify({ start_date: startDate, auto_approve: autoApprove, weeks }),
     });
     const data = await res.json();
-    if (!res.ok) throw new Error(data.error || 'Failed to generate weekly timetable');
+    if (!res.ok) throw new Error(data.error || 'Failed to generate timetable');
     return data;
   },
 

@@ -339,6 +339,203 @@ class SchedulingEngine:
 
         return tasks
 
+    def generate_semester_schedule(
+        self,
+        start_date: date,
+        weeks: int = 16,
+        auto_approve: bool = False
+    ) -> Tuple[ScheduleVersion, List[CalendarEvent], Dict]:
+        """
+        Generate a full-semester schedule by repeating the weekly task template
+        across `weeks` consecutive weeks. Each week uses actual calendar dates.
+        Existing unlocked events in the full range are cleared first.
+        """
+        end_date = start_date + timedelta(weeks=weeks) - timedelta(days=1)
+
+        # Clear all previous non-locked, non-completed events across the entire semester range
+        CalendarEvent.query.filter(
+            CalendarEvent.user_id == self.user.id,
+            CalendarEvent.is_locked == False,
+            CalendarEvent.is_completed == False,
+            CalendarEvent.start_time >= datetime.combine(start_date, time.min),
+            CalendarEvent.start_time <= datetime.combine(end_date, time.max)
+        ).delete(synchronize_session=False)
+        db.session.commit()
+
+        # Create a single ScheduleVersion spanning the full semester
+        version_num = ScheduleVersion.query.filter_by(user_id=self.user.id).count() + 1
+        version = ScheduleVersion(
+            user_id=self.user.id,
+            version_number=version_num,
+            start_date=start_date,
+            end_date=end_date,
+            status='ACTIVE' if auto_approve else 'DRAFT',
+            generation_metrics_json=json.dumps({'weeks': weeks, 'mode': 'semester'})
+        )
+        db.session.add(version)
+        db.session.flush()
+
+        all_scheduled_events: List[CalendarEvent] = []
+        combined_overload: Dict = {
+            'is_overloaded': False,
+            'total_available_hours': 0.0,
+            'total_needed_hours': 0.0,
+            'deficit_hours': 0.0,
+            'suggestion': '',
+            'weeks': weeks
+        }
+
+        # Track cross-week spacing per course
+        last_course_date: Dict[int, date] = {}
+
+        for week_idx in range(weeks):
+            week_start = start_date + timedelta(weeks=week_idx)
+            week_end = week_start + timedelta(days=6)
+
+            # Get this week's availability (7 days)
+            availability = self.get_user_availability_intervals(week_start, days_count=7)
+
+            # Load locked events in this week
+            existing_locked = CalendarEvent.query.filter(
+                CalendarEvent.user_id == self.user.id,
+                CalendarEvent.is_locked == True,
+                CalendarEvent.start_time >= datetime.combine(week_start, time.min),
+                CalendarEvent.end_time <= datetime.combine(week_end, time.max)
+            ).all()
+
+            # Compute free slots for the week
+            free_slots: List[Tuple[datetime, datetime]] = []
+            total_available_hours = 0.0
+
+            for day, intervals in sorted(availability.items()):
+                for s_time, e_time in intervals:
+                    overlaps = [
+                        ev for ev in existing_locked
+                        if not (ev.end_time <= s_time or ev.start_time >= e_time)
+                    ]
+                    if not overlaps:
+                        free_slots.append((s_time, e_time))
+                        total_available_hours += (e_time - s_time).total_seconds() / 3600.0
+                    else:
+                        overlaps.sort(key=lambda x: x.start_time)
+                        pointer = s_time
+                        for lk in overlaps:
+                            if lk.start_time > pointer:
+                                free_slots.append((pointer, lk.start_time))
+                                total_available_hours += (lk.start_time - pointer).total_seconds() / 3600.0
+                            pointer = max(pointer, lk.end_time)
+                        if pointer < e_time:
+                            free_slots.append((pointer, e_time))
+                            total_available_hours += (e_time - pointer).total_seconds() / 3600.0
+
+            free_slots.sort(key=lambda x: x[0])
+
+            # Fresh task list for each week (recurring pattern)
+            week_tasks = self.gather_schedulable_tasks(week_start, week_end)
+            week_tasks.sort(key=lambda x: x.priority_score, reverse=True)
+
+            total_needed_hours = sum(t.duration_mins / 60.0 for t in week_tasks)
+            is_overloaded = total_needed_hours > total_available_hours
+
+            combined_overload['total_available_hours'] += round(total_available_hours, 1)
+            combined_overload['total_needed_hours'] += round(total_needed_hours, 1)
+            if is_overloaded:
+                combined_overload['is_overloaded'] = True
+
+            # Pack tasks into the week's slots
+            unplaced_tasks = list(week_tasks)
+            day_course_ids: Dict[date, set] = {}
+            day_skill_names: Dict[date, set] = {}
+
+            for slot_start, slot_end in free_slots:
+                curr_pointer = slot_start
+                while curr_pointer < slot_end and unplaced_tasks:
+                    curr_date = curr_pointer.date()
+                    if curr_date not in day_course_ids:
+                        day_course_ids[curr_date] = set()
+                    if curr_date not in day_skill_names:
+                        day_skill_names[curr_date] = set()
+
+                    remaining_mins = int((slot_end - curr_pointer).total_seconds() / 60)
+                    if remaining_mins < 45:
+                        break
+
+                    best_idx = None
+                    best_score = -999.0
+
+                    for idx, t in enumerate(unplaced_tasks):
+                        if t.duration_mins > remaining_mins:
+                            continue
+                        if t.related_entity_type == 'course' and t.related_entity_id:
+                            if t.related_entity_id in day_course_ids[curr_date]:
+                                continue
+                        if t.related_entity_type == 'skill':
+                            if t.title in day_skill_names[curr_date]:
+                                continue
+
+                        spacing_bonus = 0.0
+                        if t.related_entity_type == 'course' and t.related_entity_id in last_course_date:
+                            gap_days = (curr_date - last_course_date[t.related_entity_id]).days
+                            if gap_days >= 2:
+                                spacing_bonus = 0.5
+                            elif gap_days == 1:
+                                spacing_bonus = -0.3
+
+                        score = (100.0 - t.round_index * 25.0) + t.priority_score * 5.0 + spacing_bonus
+                        if score > best_score:
+                            best_score = score
+                            best_idx = idx
+
+                    if best_idx is None and remaining_mins >= 60:
+                        for idx, t in enumerate(unplaced_tasks):
+                            if t.duration_mins <= remaining_mins:
+                                score = t.priority_score
+                                if score > best_score:
+                                    best_score = score
+                                    best_idx = idx
+
+                    if best_idx is not None:
+                        chosen_task = unplaced_tasks.pop(best_idx)
+                        task_end = curr_pointer + timedelta(minutes=chosen_task.duration_mins)
+                        event = CalendarEvent(
+                            user_id=self.user.id,
+                            schedule_version_id=version.id,
+                            title=chosen_task.title,
+                            category=chosen_task.category,
+                            start_time=curr_pointer,
+                            end_time=task_end,
+                            is_locked=False,
+                            related_entity_type=chosen_task.related_entity_type,
+                            related_entity_id=chosen_task.related_entity_id,
+                            explanation=f"[Week {week_idx + 1}/{weeks}] {chosen_task.explanation}"
+                        )
+                        all_scheduled_events.append(event)
+
+                        if chosen_task.related_entity_type == 'course' and chosen_task.related_entity_id:
+                            day_course_ids[curr_date].add(chosen_task.related_entity_id)
+                            last_course_date[chosen_task.related_entity_id] = curr_date
+                        elif chosen_task.related_entity_type == 'skill':
+                            day_skill_names[curr_date].add(chosen_task.title)
+
+                        curr_pointer = task_end + timedelta(minutes=15)
+                    else:
+                        break
+
+        combined_overload['deficit_hours'] = round(
+            max(0.0, combined_overload['total_needed_hours'] - combined_overload['total_available_hours']), 1
+        )
+        combined_overload['suggestion'] = (
+            f"Semester workload fits across {weeks} weeks ({round(combined_overload['total_available_hours'],0)}h available)."
+            if not combined_overload['is_overloaded']
+            else f"Some weeks are overloaded. Deficit: {combined_overload['deficit_hours']}h across {weeks} weeks."
+        )
+
+        version.generation_metrics_json = json.dumps(combined_overload)
+        db.session.add_all(all_scheduled_events)
+        db.session.commit()
+
+        return version, all_scheduled_events, combined_overload
+
     def generate_weekly_schedule(
         self,
         start_date: date,

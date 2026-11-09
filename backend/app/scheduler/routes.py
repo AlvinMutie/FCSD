@@ -95,20 +95,33 @@ def generate_schedule():
     data = request.get_json() or {}
     start_date_str = data.get('start_date')
     auto_approve = bool(data.get('auto_approve', True))
+    weeks = int(data.get('weeks', 1))  # 1 = single week, >1 = semester mode
 
     target_start = parse_iso_date(start_date_str) if start_date_str else date.today()
+    # Snap to Monday of the target week
+    days_since_monday = target_start.weekday()
+    target_start = target_start - timedelta(days=days_since_monday)
 
     engine = SchedulingEngine(user)
-    version, events, overload_report = engine.generate_weekly_schedule(
-        start_date=target_start,
-        auto_approve=auto_approve
-    )
+
+    if weeks > 1:
+        version, events, overload_report = engine.generate_semester_schedule(
+            start_date=target_start,
+            weeks=weeks,
+            auto_approve=auto_approve
+        )
+    else:
+        version, events, overload_report = engine.generate_weekly_schedule(
+            start_date=target_start,
+            auto_approve=auto_approve
+        )
 
     return jsonify({
-        'message': 'Weekly schedule successfully generated',
+        'message': f'Schedule generated for {weeks} week(s) starting {target_start.isoformat()}',
         'schedule_version': version.to_dict(),
         'events': [e.to_dict() for e in events],
-        'overload_report': overload_report
+        'overload_report': overload_report,
+        'weeks': weeks
     }), 201
 
 @scheduler_bp.route('/clear', methods=['POST'])
