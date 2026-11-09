@@ -40,8 +40,13 @@ export interface AcademicTerm {
   name: string;
   start_date: string;
   end_date: string;
+  effective_start_date?: string | null;
+  study_start_date?: string | null;
   is_current: boolean;
   courses_count: number;
+  total_weeks?: number;
+  study_weeks?: number;
+  today?: string;
 }
 
 export interface Course {

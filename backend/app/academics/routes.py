@@ -53,6 +53,87 @@ def list_terms():
     terms = AcademicTerm.query.filter_by(user_id=user.id).order_by(AcademicTerm.start_date.desc()).all()
     return jsonify({'terms': [t.to_dict() for t in terms]}), 200
 
+@academics_bp.route('/current-term', methods=['GET'])
+def get_current_term():
+    user = get_current_user()
+    if not user:
+        return jsonify({'error': 'Unauthorized'}), 401
+
+    term = AcademicTerm.query.filter_by(user_id=user.id, is_current=True).first()
+    if not term:
+        term = AcademicTerm.query.filter_by(user_id=user.id).order_by(AcademicTerm.start_date.desc()).first()
+
+    if not term:
+        # Default placeholder if none exists
+        today = date.today()
+        term = AcademicTerm(
+            user_id=user.id,
+            name="Current Semester",
+            start_date=date(today.year, 9, 1),
+            end_date=date(today.year, 12, 31),
+            effective_start_date=today,
+            is_current=True
+        )
+        db.session.add(term)
+        db.session.commit()
+
+    study_start = term.effective_start_date or term.start_date
+    total_weeks = max(1, ((term.end_date - term.start_date).days // 7) + 1)
+    study_weeks = max(1, ((term.end_date - study_start).days // 7) + 1)
+
+    data = term.to_dict()
+    data.update({
+        'total_weeks': total_weeks,
+        'study_weeks': study_weeks,
+        'today': date.today().isoformat()
+    })
+    return jsonify({'term': data}), 200
+
+@academics_bp.route('/current-term', methods=['POST', 'PUT'])
+def configure_current_term():
+    user = get_current_user()
+    if not user:
+        return jsonify({'error': 'Unauthorized'}), 401
+
+    data = request.get_json() or {}
+    name = data.get('name', '').strip() or 'Year 2 Semester 2'
+    start_date = parse_iso_date(data.get('start_date'))
+    end_date = parse_iso_date(data.get('end_date'))
+    effective_start = parse_iso_date(data.get('effective_start_date')) or start_date
+
+    if not start_date or not end_date:
+        return jsonify({'error': 'Official start date and end date are required.'}), 400
+
+    term = AcademicTerm.query.filter_by(user_id=user.id, is_current=True).first()
+    if not term:
+        term = AcademicTerm.query.filter_by(user_id=user.id).first()
+
+    if not term:
+        term = AcademicTerm(user_id=user.id, name=name, start_date=start_date, end_date=end_date, effective_start_date=effective_start, is_current=True)
+        db.session.add(term)
+    else:
+        term.name = name
+        term.start_date = start_date
+        term.end_date = end_date
+        term.effective_start_date = effective_start
+        term.is_current = True
+
+    # Ensure other terms are not marked current
+    AcademicTerm.query.filter(AcademicTerm.user_id == user.id, AcademicTerm.id != term.id).update({'is_current': False})
+    db.session.commit()
+
+    study_start = term.effective_start_date or term.start_date
+    total_weeks = max(1, ((term.end_date - term.start_date).days // 7) + 1)
+    study_weeks = max(1, ((term.end_date - study_start).days // 7) + 1)
+
+    res = term.to_dict()
+    res.update({
+        'total_weeks': total_weeks,
+        'study_weeks': study_weeks,
+        'today': date.today().isoformat()
+    })
+    return jsonify({'message': 'Semester configuration saved successfully', 'term': res}), 200
+
 @academics_bp.route('/terms', methods=['POST'])
 def create_term():
     user = get_current_user()
@@ -63,13 +144,13 @@ def create_term():
     name = data.get('name', '').strip()
     start_date = parse_iso_date(data.get('start_date'))
     end_date = parse_iso_date(data.get('end_date'))
+    effective_start = parse_iso_date(data.get('effective_start_date')) or start_date
     is_current = bool(data.get('is_current', True))
 
     if not name or not start_date or not end_date:
         return jsonify({'error': 'Name, start date, and end date are required.'}), 400
 
     if is_current:
-        # Set all other terms to not current
         AcademicTerm.query.filter_by(user_id=user.id, is_current=True).update({'is_current': False})
 
     term = AcademicTerm(
@@ -77,6 +158,7 @@ def create_term():
         name=name,
         start_date=start_date,
         end_date=end_date,
+        effective_start_date=effective_start,
         is_current=is_current
     )
     db.session.add(term)
@@ -100,6 +182,8 @@ def update_term(term_id):
         term.start_date = parse_iso_date(data['start_date']) or term.start_date
     if 'end_date' in data:
         term.end_date = parse_iso_date(data['end_date']) or term.end_date
+    if 'effective_start_date' in data:
+        term.effective_start_date = parse_iso_date(data['effective_start_date']) or term.effective_start_date
     if 'is_current' in data:
         term.is_current = bool(data['is_current'])
         if term.is_current:

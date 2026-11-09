@@ -16,9 +16,12 @@ import {
   FileText,
   History,
   Info,
+  Calendar,
+  Sparkles,
 } from 'lucide-react';
 import { api } from '../../services/api';
-import { IntegrationStatus, PendingImportItem, ImportHistoryItem } from '../../types';
+import { IntegrationStatus, PendingImportItem, ImportHistoryItem, AcademicTerm } from '../../types';
+import { SemesterSetupModal } from '../../components/SemesterSetupModal';
 
 export const IntegrationsPage: React.FC = () => {
   const [activeTab, setActiveTab] = useState<'pending' | 'bridge' | 'history'>('pending');
@@ -34,17 +37,23 @@ export const IntegrationsPage: React.FC = () => {
   const [editCourseCode, setEditCourseCode] = useState('');
   const [editDeadline, setEditDeadline] = useState('');
 
+  // Semester Period Setup state
+  const [currentTerm, setCurrentTerm] = useState<AcademicTerm | null>(null);
+  const [showSemesterModal, setShowSemesterModal] = useState(false);
+
   const loadData = async () => {
     try {
       setLoading(true);
-      const [st, pend, hist] = await Promise.all([
+      const [st, pend, hist, termRes] = await Promise.all([
         api.getIntegrationStatus(),
         api.getPendingImports('ALL'),
         api.getImportHistory(),
+        api.getCurrentTerm().catch(() => ({ term: null })),
       ]);
       setStatus(st);
       setPendingImports(pend.pending_imports);
       setHistory(hist.history);
+      if (termRes && termRes.term) setCurrentTerm(termRes.term);
     } catch (err) {
       console.error(err);
     } finally {
@@ -167,6 +176,48 @@ export const IntegrationsPage: React.FC = () => {
           </button>
         </div>
       </div>
+
+      {/* Semester Setup & Period Pre-Configuration Callout */}
+      <div className="p-4 rounded-2xl bg-gradient-to-r from-slate-900 via-slate-900 to-brand-950/40 border border-brand-500/30 flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-md">
+        <div className="flex items-start gap-3">
+          <div className="w-10 h-10 rounded-xl bg-brand-500/15 border border-brand-500/30 text-brand-400 flex items-center justify-center shrink-0 mt-0.5">
+            <Calendar className="w-5 h-5" />
+          </div>
+          <div>
+            <div className="flex items-center gap-2 flex-wrap">
+              <h3 className="text-sm font-bold text-slate-100">
+                {currentTerm ? currentTerm.name : 'Semester Period Setup'}
+              </h3>
+              <span className="px-2 py-0.5 rounded-full bg-brand-500/20 text-brand-300 text-[10px] font-bold">
+                {currentTerm?.study_weeks ? `${currentTerm.study_weeks} Study Weeks Active` : 'Nov → Dec 2026'}
+              </span>
+            </div>
+            <p className="text-xs text-slate-400 mt-0.5">
+              Official: <span className="text-slate-300">{currentTerm?.start_date || '2026-09-01'}</span> →{' '}
+              <span className="text-slate-300">{currentTerm?.end_date || '2026-12-31'}</span>
+              {' · '}Study Start: <span className="text-brand-300 font-semibold">{currentTerm?.effective_start_date || currentTerm?.study_start_date || '2026-11-09'}</span> (e.g. Nov 9 strike delay)
+            </p>
+          </div>
+        </div>
+
+        <button
+          onClick={() => setShowSemesterModal(true)}
+          className="px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 border border-slate-700 text-brand-300 hover:text-brand-200 text-xs font-semibold flex items-center gap-1.5 transition-colors cursor-pointer shrink-0"
+        >
+          <Sparkles className="w-3.5 h-3.5" />
+          <span>Configure Semester Dates</span>
+        </button>
+      </div>
+
+      {/* Semester Setup Modal */}
+      <SemesterSetupModal
+        isOpen={showSemesterModal}
+        onClose={() => setShowSemesterModal(false)}
+        onSaved={(t) => {
+          setCurrentTerm(t);
+          loadData();
+        }}
+      />
 
       {/* TAB 1: PENDING IMPORTS REVIEW MANAGER */}
       {activeTab === 'pending' && (

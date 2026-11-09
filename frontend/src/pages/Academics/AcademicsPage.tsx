@@ -26,6 +26,7 @@ import {
   AcademicBalanceData,
   AcademicTerm,
 } from '../../types';
+import { SemesterSetupModal } from '../../components/SemesterSetupModal';
 
 export const AcademicsPage: React.FC = () => {
   const [activeTab, setActiveTab] = useState<'balance' | 'courses' | 'assignments' | 'assessments'>('balance');
@@ -43,6 +44,7 @@ export const AcademicsPage: React.FC = () => {
   const [courseTopics, setCourseTopics] = useState<CourseTopic[]>([]);
 
   // Modals state
+  const [showSemesterModal, setShowSemesterModal] = useState(false);
   const [showAddCourseModal, setShowAddCourseModal] = useState(false);
   const [showAddTopicModal, setShowAddTopicModal] = useState(false);
   const [showAddAssignmentModal, setShowAddAssignmentModal] = useState(false);
@@ -339,6 +341,43 @@ export const AcademicsPage: React.FC = () => {
           </button>
         </div>
       </div>
+
+      {/* Semester Period & Timeline Configuration Banner */}
+      {terms.length > 0 && (
+        <div className="p-4 rounded-2xl bg-gradient-to-r from-slate-900 via-slate-900 to-indigo-950/40 border border-indigo-500/30 flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-md">
+          <div className="flex items-start gap-3">
+            <div className="w-10 h-10 rounded-xl bg-indigo-500/15 border border-indigo-500/30 text-indigo-400 flex items-center justify-center shrink-0 mt-0.5">
+              <Calendar className="w-5 h-5" />
+            </div>
+            <div>
+              <div className="flex items-center gap-2 flex-wrap">
+                <h3 className="text-sm font-bold text-slate-100">{terms[0].name}</h3>
+                <span className="px-2 py-0.5 rounded-full bg-indigo-500/20 text-indigo-300 text-[10px] font-bold">
+                  {terms[0].study_weeks ? `${terms[0].study_weeks} Study Weeks Active` : 'Nov 9 → Dec 31'}
+                </span>
+              </div>
+              <p className="text-xs text-slate-400 mt-0.5">
+                Official: <span className="text-slate-300">{terms[0].start_date}</span> → <span className="text-slate-300">{terms[0].end_date}</span>
+                {' · '}Enrolled / Classes Started: <span className="text-indigo-300 font-semibold">{terms[0].effective_start_date || terms[0].study_start_date || terms[0].start_date}</span>
+              </p>
+            </div>
+          </div>
+          <button
+            onClick={() => setShowSemesterModal(true)}
+            className="px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 border border-slate-700 text-indigo-300 hover:text-indigo-200 text-xs font-semibold flex items-center gap-1.5 transition-colors cursor-pointer shrink-0"
+          >
+            <Sparkles className="w-3.5 h-3.5" />
+            <span>Configure Semester Timeline</span>
+          </button>
+        </div>
+      )}
+
+      {/* Semester Setup Modal */}
+      <SemesterSetupModal
+        isOpen={showSemesterModal}
+        onClose={() => setShowSemesterModal(false)}
+        onSaved={() => loadData()}
+      />
 
       {/* TAB 1: ACADEMIC BALANCE & DISTINCTION TRACKER */}
       {activeTab === 'balance' && (

@@ -9,6 +9,7 @@ class AcademicTerm(db.Model):
     name = db.Column(db.String(100), nullable=False)  # e.g. "Year 2 Semester 2"
     start_date = db.Column(db.Date, nullable=False)
     end_date = db.Column(db.Date, nullable=False)
+    effective_start_date = db.Column(db.Date, nullable=True)  # Actual enrollment / study start (e.g. after strikes)
     is_current = db.Column(db.Boolean, default=True)
     created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
 
@@ -16,12 +17,15 @@ class AcademicTerm(db.Model):
     courses = db.relationship('Course', backref='term', cascade='all, delete-orphan', lazy=True)
 
     def to_dict(self):
+        study_start = self.effective_start_date or self.start_date
         return {
             'id': self.id,
             'user_id': self.user_id,
             'name': self.name,
             'start_date': self.start_date.isoformat() if self.start_date else None,
             'end_date': self.end_date.isoformat() if self.end_date else None,
+            'effective_start_date': self.effective_start_date.isoformat() if self.effective_start_date else None,
+            'study_start_date': study_start.isoformat() if study_start else None,
             'is_current': self.is_current,
             'courses_count': len(self.courses)
         }

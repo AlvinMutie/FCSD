@@ -100,6 +100,25 @@ export const api = {
     return data;
   },
 
+  async getCurrentTerm(): Promise<{ term: AcademicTerm }> {
+    const res = await fetch(`${BASE_URL}/academics/current-term`, { credentials: 'include' });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Failed to fetch current semester term');
+    return data;
+  },
+
+  async configureCurrentTerm(payload: { name?: string; start_date: string; end_date: string; effective_start_date?: string }): Promise<{ message: string; term: AcademicTerm }> {
+    const res = await fetch(`${BASE_URL}/academics/current-term`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      credentials: 'include',
+      body: JSON.stringify(payload),
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Failed to configure semester');
+    return data;
+  },
+
   async createTerm(payload: Partial<AcademicTerm>): Promise<{ term: AcademicTerm }> {
     const res = await fetch(`${BASE_URL}/academics/terms`, {
       method: 'POST',
@@ -405,12 +424,15 @@ export const api = {
     if (!res.ok) throw new Error('Failed to delete availability rule');
   },
 
-  async generateWeeklySchedule(startDate?: string, autoApprove = true, weeks = 1): Promise<any> {
+  async generateWeeklySchedule(startDate?: string, autoApprove = true, weeks = 0): Promise<any> {
+    const payload: Record<string, any> = { auto_approve: autoApprove };
+    if (startDate) payload.start_date = startDate;
+    if (weeks && weeks > 0) payload.weeks = weeks;
     const res = await fetch(`${BASE_URL}/scheduler/generate`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       credentials: 'include',
-      body: JSON.stringify({ start_date: startDate, auto_approve: autoApprove, weeks }),
+      body: JSON.stringify(payload),
     });
     const data = await res.json();
     if (!res.ok) throw new Error(data.error || 'Failed to generate timetable');
