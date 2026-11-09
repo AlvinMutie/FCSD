@@ -1,0 +1,14 @@
+services:
+  - type: web
+    name: mylife-os
+    runtime: python
+    buildCommand: "./render-build.sh"
+    startCommand: "gunicorn --chdir backend run:app --bind 0.0.0.0:$PORT"
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.11.9
+      - key: SECRET_KEY
+        generateValue: true
+      - key: FLASK_DEBUG
+        value: "0"
+

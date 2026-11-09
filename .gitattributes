@@ -1,0 +1,3 @@
+﻿# Ensure shell scripts always use Unix LF line endings on Render
+*.sh text eol=lf
+Procfile text eol=lf

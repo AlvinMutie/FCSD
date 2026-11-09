@@ -1,6 +1,6 @@
 import os
 from datetime import datetime, date, timedelta
-from flask import Flask
+from flask import Flask, send_from_directory, jsonify
 from flask_cors import CORS
 from .config import Config
 from .models import (
@@ -37,7 +37,11 @@ from .projects.routes import projects_bp
 from .analytics.routes import analytics_bp
 
 def create_app(config_class=Config):
-    app = Flask(__name__)
+    dist_folder = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..', 'frontend', 'dist'))
+    # Do NOT set static_url_path='/' — it causes Flask to intercept /<path> routes
+    # before our SPA catch-all, returning 404 for /timetable, /skills, etc.
+    # We handle all static serving explicitly in serve_spa() below.
+    app = Flask(__name__, static_folder=dist_folder, static_url_path='/static-assets')
     app.config.from_object(config_class)
 
     # Enable CORS for frontend Vite dev server
@@ -230,11 +234,162 @@ def create_app(config_class=Config):
             ])
             db.session.commit()
 
+        # In normal/production mode, seed the 8 real SODeL courses if none exist
+        if not app.config.get('TESTING') and student and Course.query.count() == 0:
+            term = AcademicTerm.query.filter_by(user_id=student.id, is_current=True).first()
+            if term:
+                real_units_data = [
+                    {
+                        "code": "BIT 2214", "title": "BIT 2214/ HBT 2305 Object-Oriented Analysis and Design",
+                        "difficulty": 4, "importance": 5, "min_hours": 4.0, "target_hours": 6.0,
+                        "topics": [
+                            "Object Oriented Concepts & Unified Modeling Language (UML)",
+                            "Requirements Elicitation, Use Case Modeling & User Stories",
+                            "Domain Modeling & Class Diagrams (Attributes, Methods, Associations)",
+                            "Dynamic Modeling: Sequence Diagrams & Activity Diagrams",
+                            "Design Patterns: Creational, Structural & Behavioral Patterns",
+                            "Architecture Design: MVC, Layered & Microservices",
+                            "Object-Oriented Testing & Code Generation"
+                        ]
+                    },
+                    {
+                        "code": "CALC 1", "title": "Calculus I",
+                        "difficulty": 4, "importance": 4, "min_hours": 3.5, "target_hours": 5.0,
+                        "topics": [
+                            "Functions, Limits & Continuity",
+                            "Differentiation: First Principles & Power, Product, Quotient Rules",
+                            "Implicit Differentiation & Chain Rule",
+                            "Applications of Differentiation: Tangents, Normals & Rate of Change",
+                            "Curve Sketching: Turning Points & Points of Inflection",
+                            "Introduction to Integration: Indefinite Integrals & Fundamental Theorem",
+                            "Applications of Integration: Area under Curves"
+                        ]
+                    },
+                    {
+                        "code": "DB-SYS", "title": "Database System",
+                        "difficulty": 3, "importance": 5, "min_hours": 4.0, "target_hours": 6.0,
+                        "topics": [
+                            "Database Architecture & The Three-Schema Framework",
+                            "Conceptual Modeling: Entity-Relationship (ER) Diagrams",
+                            "Relational Model: Schemas, Keys & Constraints",
+                            "Relational Algebra & Tuple Relational Calculus",
+                            "Normalization Theory: Functional Dependencies (1NF, 2NF, 3NF, BCNF)",
+                            "Structured Query Language (SQL): DDL, DML & Subqueries",
+                            "Transaction Management, Concurrency Control (ACID) & Indexing"
+                        ]
+                    },
+                    {
+                        "code": "GIS", "title": "Geographical Information Systems",
+                        "difficulty": 3, "importance": 4, "min_hours": 3.0, "target_hours": 4.5,
+                        "topics": [
+                            "Fundamentals of GIS & Spatial Data Models (Vector vs Raster)",
+                            "Coordinate Systems, Map Projections & Georeferencing",
+                            "Spatial Data Collection, GPS & Remote Sensing Principles",
+                            "Spatial Database Management & Attribute Queries",
+                            "Spatial Analysis: Buffering, Overlay & Proximity Analysis",
+                            "Cartographic Principles & Digital Map Production",
+                            "GIS Applications in Urban Planning, Logistics & Environment"
+                        ]
+                    },
+                    {
+                        "code": "MWC", "title": "Mobile & Wireless Computing",
+                        "difficulty": 3, "importance": 4, "min_hours": 3.5, "target_hours": 5.0,
+                        "topics": [
+                            "Overview of Wireless Communication & Cellular Network Evolution (2G-5G)",
+                            "Radio Propagation, Multipath Fading & Channel Modeling",
+                            "Wireless Technologies: Wi-Fi (802.11), Bluetooth, ZigBee & RFID",
+                            "Mobile IP, Routing Protocols & Mobility Management",
+                            "Mobile Computing Architecture: Client-Server & P2P",
+                            "Wireless Network Security: WPA3, Rogue APs & Encryption",
+                            "Emerging Trends: Mobile Edge Computing & Internet of Things (IoT)"
+                        ]
+                    },
+                    {
+                        "code": "OOP 1", "title": "Object Oriented Programming I",
+                        "difficulty": 3, "importance": 5, "min_hours": 4.0, "target_hours": 6.0,
+                        "topics": [
+                            "Foundations of OOP: Classes, Objects & Instantiation",
+                            "Encapsulation, Access Specifiers & Getters/Setters",
+                            "Constructors, Destructors & Method Overloading",
+                            "Inheritance: Single, Multilevel & Hierarchical",
+                            "Polymorphism: Method Overriding & Virtual Functions",
+                            "Abstract Classes, Interfaces & Pure Virtual Functions",
+                            "Exception Handling, File Streams & Memory Allocation"
+                        ]
+                    },
+                    {
+                        "code": "SE 1", "title": "Software Engineering 1",
+                        "difficulty": 4, "importance": 5, "min_hours": 4.0, "target_hours": 6.0,
+                        "topics": [
+                            "Software Engineering Discipline & SDLC Life Cycles",
+                            "Agile Methodologies: Scrum, Kanban & Sprint Planning",
+                            "Software Requirements Specification (SRS) & IEEE Standards",
+                            "Architectural Styles & Modular Design Principles",
+                            "Software Quality Assurance (SQA) & Verification/Validation",
+                            "Testing Methodologies: Unit Testing, Integration Testing & TDD",
+                            "Software Maintenance, Version Control & CI/CD Pipelines"
+                        ]
+                    },
+                    {
+                        "code": "WAD 1", "title": "Web Application Development I",
+                        "difficulty": 3, "importance": 5, "min_hours": 4.0, "target_hours": 6.0,
+                        "topics": [
+                            "Web Architecture: HTTP/HTTPS & Request Lifecycle",
+                            "Modern Semantic HTML5 & Web Accessibility (WCAG)",
+                            "Responsive Design: CSS3 Flexbox, Grid & Media Queries",
+                            "JavaScript Fundamentals: ES6+, DOM Manipulation & Events",
+                            "Asynchronous JavaScript: Promises, Fetch API & Async/Await",
+                            "Client-Side State Management & Form Validation",
+                            "Web Security Fundamentals: XSS, CSRF & HTTPS"
+                        ]
+                    }
+                ]
+                for u in real_units_data:
+                    c = Course(
+                        term_id=term.id,
+                        code=u["code"],
+                        title=u["title"],
+                        difficulty_level=u["difficulty"],
+                        academic_importance=u["importance"],
+                        min_weekly_hours=u["min_hours"],
+                        target_weekly_hours=u["target_hours"],
+                        actual_weekly_hours=0.0,
+                        target_grade="Distinction"
+                    )
+                    db.session.add(c)
+                    db.session.flush()
+                    for idx, t_title in enumerate(u["topics"], start=1):
+                        topic = CourseTopic(
+                            course_id=c.id,
+                            title=t_title,
+                            order_index=idx,
+                            status="Needs Revision",
+                            confidence_score=1
+                        )
+                        db.session.add(topic)
+                db.session.commit()
+
         if student:
             db.session.commit()
 
     @app.route('/api/health', methods=['GET'])
     def health():
         return {'status': 'healthy', 'service': 'MyLife OS API'}, 200
+
+    # Catch-all route to serve the React Single Page Application (SPA) in production
+    @app.route('/', defaults={'path': ''})
+    @app.route('/<path:path>')
+    def serve_spa(path):
+        if path.startswith('api/'):
+            return jsonify({'error': 'API endpoint not found'}), 404
+        if path != "" and os.path.exists(os.path.join(app.static_folder, path)):
+            return send_from_directory(app.static_folder, path)
+        index_file = os.path.join(app.static_folder, 'index.html')
+        if os.path.exists(index_file):
+            return send_from_directory(app.static_folder, 'index.html')
+        return jsonify({
+            'status': 'healthy',
+            'message': 'MyLife OS API is running. Build frontend with `npm run build` in frontend/ to serve the UI.',
+        }), 200
 
     return app
