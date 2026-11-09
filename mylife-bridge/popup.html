@@ -122,18 +122,27 @@
 <body>
   <div class="header">
     <div class="brand-icon">M</div>
-    <div>
+    <div style="flex: 1;">
       <h3 class="title">MyLife Bridge</h3>
       <span class="badge">JKUAT SODeL MV3</span>
     </div>
+    <button id="toggle-token-btn" style="background: rgba(99,102,241,0.15); border: 1px solid rgba(99,102,241,0.3); color: #818cf8; font-size: 11px; padding: 4px 8px; border-radius: 6px; cursor: pointer;">🔑 Token</button>
   </div>
 
-  <div id="pairing-section">
-    <input type="password" id="pairing-token-input" class="token-input" placeholder="Paste Pairing Token (from MyLife OS)">
-    <button id="save-token-btn" class="btn btn-primary">Save Token</button>
+  <div id="pairing-section" style="background: #1e293b; border: 1px solid #334155; border-radius: 8px; padding: 10px; margin-bottom: 12px; display: none;">
+    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
+      <span style="font-size: 11px; font-weight: 600; color: #cbd5e1;">Extension Pairing Token</span>
+      <button id="close-token-btn" style="background: none; border: none; color: #94a3b8; font-size: 11px; cursor: pointer;">✕</button>
+    </div>
+    <input type="text" id="pairing-token-input" class="token-input" placeholder="Paste Token (e.g. mlb_sodel_alvin2026)" style="font-family: monospace; font-size: 11px; margin-bottom: 6px;">
+    <button id="save-token-btn" class="btn btn-primary" style="padding: 6px 10px; font-size: 11px; margin-bottom: 0;">Save Token</button>
   </div>
 
   <div class="status-card" id="status-card">
+    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px; border-bottom: 1px solid #334155; padding-bottom: 4px;">
+      <span>PAIRING STATUS</span>
+      <span id="token-status-pill" style="font-size: 10px; color: #34d399; font-weight: 600;">Active</span>
+    </div>
     <span>DETECTED PAGE TYPE</span>
     <strong id="page-type-label">Scanning active tab...</strong>
   </div>

@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts';
 import { TrendingUp, AlertTriangle, CheckCircle2, Calendar, Target } from 'lucide-react';
+import { api } from '../../services/api';
 
 interface DomainData {
   domain: string;
@@ -75,12 +76,12 @@ export const AnalyticsPage: React.FC = () => {
 
   const load = useCallback(async () => {
     setLoading(true);
+    setError('');
     try {
       const [w, d] = await Promise.all([
-        fetch('/api/analytics/weekly-summary', { credentials: 'include' }).then(r => r.json()),
-        fetch('/api/analytics/time-distribution', { credentials: 'include' }).then(r => r.json()),
+        api.getWeeklyAnalytics(),
+        api.getTimeDistribution(),
       ]);
-      if (w.error) throw new Error(w.error);
       setWeekly(w);
       setDistribution(d);
     } catch (e: unknown) {

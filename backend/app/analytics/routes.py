@@ -63,7 +63,7 @@ def weekly_summary():
             domain = 'Personal'
 
         domain_planned[domain] += dur_h
-        if ev.status == 'Completed':
+        if ev.is_completed:
             domain_completed[domain] += dur_h
 
     # Skills track data from LearningSession
@@ -169,7 +169,7 @@ def time_distribution():
 
     events = CalendarEvent.query.filter(
         CalendarEvent.user_id == user.id,
-        CalendarEvent.status == 'Completed',
+        CalendarEvent.is_completed == True,
     ).all()
 
     domain_hours = {'Academic': 0.0, 'Skills': 0.0, 'Career': 0.0, 'Personal': 0.0, 'Other': 0.0}

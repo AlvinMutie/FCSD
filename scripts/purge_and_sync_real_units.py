@@ -304,3 +304,4 @@ with app.app_context():
 
     db.session.commit()
     print(f"\nAll 8 real units from SODeL dashboard are now active in MyLife OS for {student.email}!")
+

@@ -362,6 +362,21 @@ export const api = {
     return data;
   },
 
+  // Analytics
+  async getWeeklyAnalytics(): Promise<any> {
+    const res = await fetch(`${BASE_URL}/analytics/weekly-summary`, { credentials: 'include' });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Failed to fetch weekly analytics');
+    return data;
+  },
+
+  async getTimeDistribution(): Promise<any> {
+    const res = await fetch(`${BASE_URL}/analytics/time-distribution`, { credentials: 'include' });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Failed to fetch time distribution');
+    return data;
+  },
+
   // Scheduling Engine & Timetable
   async getAvailability(): Promise<{ rules: any[] }> {
     const res = await fetch(`${BASE_URL}/scheduler/availability`, { credentials: 'include' });
