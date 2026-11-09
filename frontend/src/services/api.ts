@@ -513,6 +513,28 @@ export const api = {
     return data;
   },
 
+  async createSkillTrack(payload: { track_name: string; current_level?: string; weekly_target_hours?: number; color_hex?: string; initial_goal?: string }): Promise<{ track: any; message: string }> {
+    const res = await fetch(`${BASE_URL}/skills/tracks`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      credentials: 'include',
+      body: JSON.stringify(payload),
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Failed to create skill track');
+    return data;
+  },
+
+  async deleteSkillTrack(id: number): Promise<{ message: string }> {
+    const res = await fetch(`${BASE_URL}/skills/tracks/${id}`, {
+      method: 'DELETE',
+      credentials: 'include',
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Failed to delete skill track');
+    return data;
+  },
+
   async updateSkillTrack(id: number, payload: any): Promise<{ track: any }> {
     const res = await fetch(`${BASE_URL}/skills/tracks/${id}`, {
       method: 'PUT',
@@ -584,6 +606,10 @@ export const api = {
     const data = await res.json();
     if (!res.ok) throw new Error(data.error || 'Failed to record session');
     return data;
+  },
+
+  async logSkillSession(payload: any): Promise<{ session: any }> {
+    return this.recordSkillSession(payload);
   },
 
   async getSkillEvidence(skillId?: number): Promise<{ evidence: any[] }> {

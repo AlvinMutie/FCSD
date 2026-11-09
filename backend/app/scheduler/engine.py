@@ -12,6 +12,7 @@ from ..models import (
     AvailabilityRule,
     CalendarEvent,
     ScheduleVersion,
+    Skill,
 )
 
 @dataclass
@@ -219,7 +220,7 @@ class SchedulingEngine:
                     round_index=s_idx
                 ))
 
-        # 3. Academic Balanced Course Study (Option 2: Guaranteed 2-session floor + adaptive surge)
+        # 3. Academic Balanced Course Study & Unit Revision
         courses = Course.query.join(AcademicTerm).filter(
             AcademicTerm.user_id == self.user.id,
             Course.is_archived == False
@@ -239,7 +240,7 @@ class SchedulingEngine:
                 attention_gap=c.attention_gap
             )
 
-            # Session 1: Guaranteed baseline floor (Round 0)
+            # Session 1: Baseline Core Study (Round 0)
             tasks.append(SchedulableTask(
                 id=f"crs_{c.id}_0",
                 title=f"Study: {display_name}",
@@ -247,28 +248,41 @@ class SchedulingEngine:
                 duration_mins=90,
                 priority_score=p,
                 course_code=c.code,
-                explanation=f"Baseline study session 1 for {c.title}",
+                explanation=f"Core concept study for {c.title}",
                 related_entity_type='course',
                 related_entity_id=c.id,
                 round_index=0
             ))
 
-            # Session 2: Guaranteed baseline floor (Round 1, spaced)
+            # Session 2: Unit Revision (Round 1 - Guaranteed for all units)
             tasks.append(SchedulableTask(
-                id=f"crs_{c.id}_1",
-                title=f"Study & Practice: {display_name}",
+                id=f"crs_rev_{c.id}",
+                title=f"Revision: {display_name}",
                 category='academic',
-                duration_mins=90,
-                priority_score=p,
+                duration_mins=60,
+                priority_score=p + 0.1,
                 course_code=c.code,
-                explanation=f"Baseline study session 2 for {c.title}",
+                explanation=f"Dedicated active recall & revision session for {c.title}",
                 related_entity_type='course',
                 related_entity_id=c.id,
                 round_index=1
             ))
 
-            # Session 3: Adaptive Boost (Round 2)
-            # Surges for high difficulty, distinction importance, large gap, or upcoming tasks
+            # Session 3: Practice & Problem Solving (Round 2)
+            tasks.append(SchedulableTask(
+                id=f"crs_{c.id}_1",
+                title=f"Practice: {display_name}",
+                category='academic',
+                duration_mins=60,
+                priority_score=p,
+                course_code=c.code,
+                explanation=f"Practical exercises and problem solving for {c.title}",
+                related_entity_type='course',
+                related_entity_id=c.id,
+                round_index=2
+            ))
+
+            # Session 4: Adaptive Boost / Deep Revision for high difficulty/urgent units
             has_urgent_work = any(asm.course_id == c.id for asm in assessments) or any(a.course_id == c.id for a in assignments)
             qualifies_for_boost = (
                 c.difficulty_level >= 4 or
@@ -280,46 +294,34 @@ class SchedulingEngine:
             if qualifies_for_boost:
                 tasks.append(SchedulableTask(
                     id=f"crs_{c.id}_2",
-                    title=f"Deep Revision: {display_name}",
+                    title=f"Deep Exam Prep: {display_name}",
                     category='academic',
-                    duration_mins=90,
+                    duration_mins=60,
                     priority_score=p + 0.05,
                     course_code=c.code,
-                    explanation=f"Adaptive boost: problem solving & distinction prep for {c.title}",
+                    explanation=f"Adaptive distinction prep & difficult topics for {c.title}",
                     related_entity_type='course',
                     related_entity_id=c.id,
-                    round_index=2
+                    round_index=3
                 ))
 
-        # 4. Technical Skills Tracks (4 tracks: Python, Cyber, Web, Net)
-        skill_tracks = [
-            ('Python', 3.0),
-            ('Cybersecurity', 3.0),
-            ('Web Development', 3.0),
-            ('Networking', 3.0),
-        ]
-        for track_name, weekly_target in skill_tracks:
+        # 4. User-Defined Custom Skills (1 hour each, distributed across other days)
+        user_skills = Skill.query.filter_by(user_id=self.user.id).all()
+        for sk in user_skills:
+            # Determine number of 1-hour sessions per week based on user target
+            sessions_count = max(1, min(4, int(round(sk.weekly_target_hours or 2.0))))
             p = self.compute_task_priority(deadline=None, importance=3, difficulty=3)
-            tasks.append(SchedulableTask(
-                id=f"skill_{track_name}_0",
-                title=f"Technical Skill Track: {track_name}",
-                category='skill',
-                duration_mins=90,
-                priority_score=p,
-                explanation=f"Weekly technical proficiency building ({track_name})",
-                related_entity_type='skill',
-                round_index=0
-            ))
-            if weekly_target >= 4.0:
+            for s_idx in range(sessions_count):
                 tasks.append(SchedulableTask(
-                    id=f"skill_{track_name}_1",
-                    title=f"Technical Skill Lab: {track_name}",
+                    id=f"skill_{sk.id}_{s_idx}",
+                    title=f"Skill Practice: {sk.track_name}",
                     category='skill',
-                    duration_mins=90,
+                    duration_mins=60,  # Exactly 1 hour each!
                     priority_score=p,
-                    explanation=f"Hands-on project lab ({track_name})",
+                    explanation=f"1-hour practical skill session ({sk.track_name}) interleaved into study days",
                     related_entity_type='skill',
-                    round_index=1
+                    related_entity_id=sk.id,
+                    round_index=s_idx
                 ))
 
         # 5. Career & Job Applications (based on target weekly apps)

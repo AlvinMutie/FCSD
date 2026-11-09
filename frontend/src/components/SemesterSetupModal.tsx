@@ -207,3 +207,4 @@ export const SemesterSetupModal: React.FC<SemesterSetupModalProps> = ({ isOpen, 
     </div>
   );
 };
+

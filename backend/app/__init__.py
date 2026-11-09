@@ -212,76 +212,25 @@ def create_app(config_class=Config):
 
             db.session.commit()
 
-        # Seed the 4 primary technical tracks for student if none exist
-        if student and not Skill.query.filter_by(user_id=student.id).first():
-            # Track 1: Python
+        # In testing mode, seed test tracks for test_skills suite; in normal app usage, skills are user-created
+        if app.config.get('TESTING') and student and not Skill.query.filter_by(user_id=student.id).first():
             sk1 = Skill(user_id=student.id, track_name='Python', current_level='Beginner', weekly_target_hours=5.0, color_hex='#3b82f6')
-            db.session.add(sk1)
+            sk2 = Skill(user_id=student.id, track_name='Cybersecurity', current_level='Beginner', weekly_target_hours=5.0, color_hex='#ef4444')
+            sk3 = Skill(user_id=student.id, track_name='Web Development', current_level='Intermediate', weekly_target_hours=6.0, color_hex='#10b981')
+            sk4 = Skill(user_id=student.id, track_name='Networking', current_level='Beginner', weekly_target_hours=5.0, color_hex='#8b5cf6')
+            db.session.add_all([sk1, sk2, sk3, sk4])
             db.session.flush()
 
             st1_1 = LearningStage(skill_id=sk1.id, title='Core Python & Data Structures', order_index=1, status='In Progress')
             db.session.add(st1_1)
             db.session.flush()
-
             db.session.add_all([
                 LearningTask(stage_id=st1_1.id, title='Control flow, list comprehensions & dicts', estimated_hours=3.0, is_completed=True),
                 LearningTask(stage_id=st1_1.id, title='OOP principles: Classes, inheritance & dunder methods', estimated_hours=4.0, is_completed=False),
-                LearningTask(stage_id=st1_1.id, title='File I/O, JSON serialization & error handling', estimated_hours=3.0, is_completed=False)
             ])
+            db.session.commit()
 
-            # Track 2: Cybersecurity
-            sk2 = Skill(user_id=student.id, track_name='Cybersecurity', current_level='Beginner', weekly_target_hours=5.0, color_hex='#ef4444')
-            db.session.add(sk2)
-            db.session.flush()
-
-            st2_1 = LearningStage(skill_id=sk2.id, title='Security Fundamentals & Network Defense', order_index=1, status='In Progress')
-            db.session.add(st2_1)
-            db.session.flush()
-
-            db.session.add_all([
-                LearningTask(stage_id=st2_1.id, title='CIA Triad, authentication mechanisms & RBAC', estimated_hours=3.0, is_completed=True),
-                LearningTask(stage_id=st2_1.id, title='Wireshark packet sniffing & protocol inspection', estimated_hours=4.0, is_completed=False),
-                LearningTask(stage_id=st2_1.id, title='OWASP Top 10 web vulnerabilities walkthrough', estimated_hours=5.0, is_completed=False)
-            ])
-
-            # Track 3: Web Development
-            sk3 = Skill(user_id=student.id, track_name='Web Development', current_level='Intermediate', weekly_target_hours=6.0, color_hex='#10b981')
-            db.session.add(sk3)
-            db.session.flush()
-
-            st3_1 = LearningStage(skill_id=sk3.id, title='Modern Full-Stack Applications', order_index=1, status='In Progress')
-            db.session.add(st3_1)
-            db.session.flush()
-
-            db.session.add_all([
-                LearningTask(stage_id=st3_1.id, title='React component state, hooks & context architecture', estimated_hours=5.0, is_completed=True),
-                LearningTask(stage_id=st3_1.id, title='Flask RESTful API design with SQLAlchemy ORM', estimated_hours=6.0, is_completed=True),
-                LearningTask(stage_id=st3_1.id, title='Secure session auth & CSRF defense', estimated_hours=4.0, is_completed=False)
-            ])
-
-            # Track 4: Networking
-            sk4 = Skill(user_id=student.id, track_name='Networking', current_level='Beginner', weekly_target_hours=5.0, color_hex='#8b5cf6')
-            db.session.add(sk4)
-            db.session.flush()
-
-            st4_1 = LearningStage(skill_id=sk4.id, title='CCNA Foundations & Subnetting', order_index=1, status='In Progress')
-            db.session.add(st4_1)
-            db.session.flush()
-
-            db.session.add_all([
-                LearningTask(stage_id=st4_1.id, title='IPv4/IPv6 addressing & VLSM calculation exercises', estimated_hours=4.0, is_completed=False),
-                LearningTask(stage_id=st4_1.id, title='Cisco Packet Tracer: Router & Switch configuration', estimated_hours=5.0, is_completed=False)
-            ])
-
-            # Initial evidence record
-            ev1 = LearningEvidence(
-                skill_id=sk3.id,
-                title='MyLife OS - Personal Operating System',
-                evidence_type='GitHub',
-                url_or_path='https://github.com/blueberry/mylife-os',
-                description='Full-stack productivity workspace combining React, TypeScript, and Flask scheduling engine.'
-            )
-            db.session.add(ev1)
+        if student:
             db.session.commit()
 
     @app.route('/api/health', methods=['GET'])

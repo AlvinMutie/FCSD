@@ -49,6 +49,56 @@ def list_tracks():
         'completion_percentage': round((total_weekly_logged / max(1.0, total_weekly_target)) * 100, 1)
     }), 200
 
+@skills_bp.route('/tracks', methods=['POST'])
+def create_track():
+    user = get_current_user()
+    if not user:
+        return jsonify({'error': 'Unauthorized'}), 401
+
+    data = request.get_json() or {}
+    track_name = data.get('track_name', '').strip()
+    if not track_name:
+        return jsonify({'error': 'Skill name is required'}), 400
+
+    current_level = data.get('current_level', 'Beginner')
+    weekly_target = float(data.get('weekly_target_hours', 3.0))
+    color_hex = data.get('color_hex', '#10b981')
+    initial_goal = data.get('initial_goal', '').strip()
+
+    skill = Skill(
+        user_id=user.id,
+        track_name=track_name,
+        current_level=current_level,
+        weekly_target_hours=weekly_target,
+        color_hex=color_hex
+    )
+    db.session.add(skill)
+    db.session.flush()
+
+    # Create an initial stage for this skill
+    stage_title = initial_goal or f'{track_name} Fundamentals & Practice'
+    stage = LearningStage(
+        skill_id=skill.id,
+        title=stage_title,
+        order_index=1,
+        status='In Progress'
+    )
+    db.session.add(stage)
+    db.session.flush()
+
+    # Initial starter task
+    starter_task = LearningTask(
+        stage_id=stage.id,
+        title=f'Setup environment & core concepts for {track_name}',
+        description=f'Hands-on kickoff session for {track_name}',
+        estimated_hours=1.0,
+        is_completed=False
+    )
+    db.session.add(starter_task)
+    db.session.commit()
+
+    return jsonify({'message': 'Skill created successfully', 'track': skill.to_dict()}), 201
+
 @skills_bp.route('/tracks/<int:skill_id>', methods=['PUT'])
 def update_track(skill_id):
     user = get_current_user()
@@ -60,6 +110,8 @@ def update_track(skill_id):
         return jsonify({'error': 'Track not found'}), 404
 
     data = request.get_json() or {}
+    if 'track_name' in data and data['track_name'].strip():
+        skill.track_name = data['track_name'].strip()
     if 'current_level' in data:
         skill.current_level = data['current_level']
     if 'weekly_target_hours' in data:
@@ -69,6 +121,20 @@ def update_track(skill_id):
 
     db.session.commit()
     return jsonify({'message': 'Track updated', 'track': skill.to_dict()}), 200
+
+@skills_bp.route('/tracks/<int:skill_id>', methods=['DELETE'])
+def delete_track(skill_id):
+    user = get_current_user()
+    if not user:
+        return jsonify({'error': 'Unauthorized'}), 401
+
+    skill = Skill.query.filter_by(id=skill_id, user_id=user.id).first()
+    if not skill:
+        return jsonify({'error': 'Track not found'}), 404
+
+    db.session.delete(skill)
+    db.session.commit()
+    return jsonify({'message': 'Skill removed successfully'}), 200
 
 # ==========================================
 # Learning Roadmaps (Stages & Tasks)
